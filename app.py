@@ -814,4 +814,8 @@ if __name__ == "__main__":
     threading.Thread(target=read_serial,   daemon=True).start()
     threading.Thread(target=fetch_weather, daemon=True).start()
     threading.Thread(target=session_timer, daemon=True).start()
+<<<<<<< HEAD
     app.run(debug=False, host="0.0.0.0", port=5000)
+=======
+    app.run(debug=False, host="0.0.0.0", port=5000)
+>>>>>>> 9e67853e2492ce2938ace4bad1026193b546eeb4
