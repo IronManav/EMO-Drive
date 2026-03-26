@@ -227,7 +227,7 @@ def fetch_weather():
             with lock:
                 city = location_data["city"]
             if city == "Unknown":
-                time.sleep(10)
+                time.sleep(2)
                 continue
             url = (f"http://api.openweathermap.org/data/2.5/weather"
                    f"?q={city}&appid={OPENWEATHER_KEY}&units=metric")
@@ -243,9 +243,11 @@ def fetch_weather():
                         "wind_kph":    round(d["wind"]["speed"] * 3.6, 1),
                     })
                 print(f"[Weather] {weather_data['temp_c']}C, {weather_data['description']}")
+            else:
+                print(f"[Weather] Bad response: HTTP {r.status_code}")
         except Exception as e:
             print(f"[Weather] Error: {e}")
-        time.sleep(300)
+        time.sleep(300)  
 
 
 # ── AQI (same OWM key) ────────────────────────────────────────────────────────
@@ -258,7 +260,7 @@ def fetch_aqi():
                 lat = location_data["lat"]
                 lon = location_data["lon"]
             if lat == 0.0 and lon == 0.0:
-                time.sleep(10)
+                time.sleep(3)
                 continue
             url = (f"http://api.openweathermap.org/data/2.5/air_pollution"
                    f"?lat={lat}&lon={lon}&appid={OPENWEATHER_KEY}")
@@ -278,6 +280,8 @@ def fetch_aqi():
                         "is_polluted": aqi_val >= AQI_UNHEALTHY_THRESHOLD,
                     })
                 print(f"[AQI] {aqi_data['aqi_label']} (AQI {aqi_val}), PM2.5={aqi_data['pm2_5']}")
+            else:
+                print(f"[AQI] Bad response: HTTP {r.status_code}")
         except Exception as e:
             print(f"[AQI] Error: {e}")
         time.sleep(300)
@@ -814,8 +818,4 @@ if __name__ == "__main__":
     threading.Thread(target=read_serial,   daemon=True).start()
     threading.Thread(target=fetch_weather, daemon=True).start()
     threading.Thread(target=session_timer, daemon=True).start()
-<<<<<<< HEAD
     app.run(debug=False, host="0.0.0.0", port=5000)
-=======
-    app.run(debug=False, host="0.0.0.0", port=5000)
->>>>>>> 9e67853e2492ce2938ace4bad1026193b546eeb4
