@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>EMO Drive</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg:       #0d0f14;
+  --surface:  #151820;
+  --card:     #1c2030;
+  --border:   #262d40;
+  --text:     #e8eaf0;
+  --muted:    #5a6380;
+  --accent:   #4f8cff;
+  --safe:     #30c97e;
+  --caution:  #f5a623;
+  --danger:   #e8445a;
+  --anxiety:  #b070f5;
+  --air:      #ff8c00;
+  --calm-c:   #30c97e;
+  --drowsy-c: #4f8cff;
+  --angry-c:  #e8445a;
+  --anxiety-c:#b070f5;
+  --alcohol-c:#f5c842;
+  --monitor-c:#5a6380;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── SHARED ── */
+.page { max-width: 1400px; margin: 0 auto; padding: 0 28px; }
+.mono { font-family: 'DM Mono', monospace; }
+.label-sm { font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); }
+.display { font-family: 'Bebas Neue', sans-serif; letter-spacing: 2px; }
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 0.65rem; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase;
+}
+.pill.safe    { background: rgba(48,201,126,0.15); color: var(--safe);    border: 1px solid rgba(48,201,126,0.3); }
+.pill.caution { background: rgba(245,166,35,0.15);  color: var(--caution); border: 1px solid rgba(245,166,35,0.3); }
+.pill.danger  { background: rgba(232,68,90,0.15);   color: var(--danger);  border: 1px solid rgba(232,68,90,0.3); }
+.pill.anxiety { background: rgba(176,112,245,0.15); color: var(--anxiety); border: 1px solid rgba(176,112,245,0.3); }
+.pill.unknown { background: rgba(90,99,128,0.15);   color: var(--muted);   border: 1px solid rgba(90,99,128,0.3); }
+
+.spinner {
+  display: inline-block; width: 14px; height: 14px;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── SCREENS ── */
+.screen { display: none; min-height: 100vh; }
+.screen.active { display: block; }
+
+/* ════════════════════════════════════════════
+   LANDING SCREEN
+════════════════════════════════════════════ */
+#screen-landing {
+  background: var(--bg);
+  display: none;
+  flex-direction: column;
+}
+#screen-landing.active { display: flex; }
+
+.landing-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 0;
+  min-height: 100vh;
+}
+
+.landing-left {
+  padding: 60px 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-right: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+
+.landing-left::before {
+  content: '';
+  position: absolute;
+  top: -200px; left: -200px;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(79,140,255,0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.brand-mark {
+  display: flex; align-items: center; gap: 16px;
+}
+.brand-hex {
+  width: 44px; height: 44px;
+  background: var(--accent);
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Bebas Neue'; font-size: 1rem; color: white; letter-spacing: 1px;
+}
+.brand-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.4rem; letter-spacing: 5px;
+  color: var(--text);
+}
+.brand-sub-sm { font-size: 0.6rem; color: var(--muted); letter-spacing: 2px; margin-top: 2px; }
+
+.landing-hero {
+  flex: 1;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 40px 0;
+}
+
+.hero-eyebrow {
+  font-size: 0.65rem; letter-spacing: 4px;
+  text-transform: uppercase; color: var(--accent);
+  margin-bottom: 20px;
+}
+
+.hero-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(3.5rem, 7vw, 6rem);
+  line-height: 0.95;
+  letter-spacing: 2px;
+  color: var(--text);
+  margin-bottom: 24px;
+}
+
+.hero-title span { color: var(--accent); }
+
+.hero-desc {
+  font-size: 1rem; line-height: 1.7;
+  color: var(--muted); max-width: 500px;
+  margin-bottom: 40px;
+}
+
+.status-checks {
+  display: flex; flex-direction: column; gap: 10px;
+  margin-bottom: 40px;
+}
+.status-check {
+  display: flex; align-items: center; gap: 12px;
+  font-size: 0.8rem; color: var(--muted);
+}
+.check-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--muted);
+  transition: background 0.4s;
+  flex-shrink: 0;
+}
+.check-dot.ok  { background: var(--safe); box-shadow: 0 0 8px rgba(48,201,126,0.5); }
+.check-dot.err { background: var(--danger); }
+.check-dot.loading { background: var(--accent); animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+.btn-start {
+  display: inline-flex; align-items: center; gap: 12px;
+  background: var(--accent);
+  color: white;
+  border: none; border-radius: 6px;
+  padding: 16px 36px;
+  font-family: 'Bebas Neue'; font-size: 1.1rem; letter-spacing: 3px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.2s;
+  align-self: flex-start;
+}
+.btn-start:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(79,140,255,0.35);
+}
+.btn-start:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-start-arrow { font-size: 1.2rem; }
+
+.landing-footer { font-size: 0.6rem; color: var(--muted); letter-spacing: 1px; }
+
+/* Previous sessions panel */
+.landing-right {
+  background: var(--surface);
+  padding: 40px 28px;
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+}
+
+.panel-title {
+  font-family: 'Bebas Neue'; font-size: 1.1rem; letter-spacing: 3px;
+  color: var(--muted); margin-bottom: 24px;
+  padding-bottom: 14px; border-bottom: 1px solid var(--border);
+}
+
+.session-list { display: flex; flex-direction: column; gap: 10px; flex: 1; }
+
+.session-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.session-card:hover {
+  border-color: var(--accent);
+  transform: translateX(3px);
+}
+.session-card-top {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 8px;
+}
+.session-card-time { font-size: 0.7rem; color: var(--muted); font-family: 'DM Mono'; }
+.session-card-location { font-size: 0.72rem; color: var(--muted); margin-top: 4px; }
+.session-card-score {
+  font-family: 'Bebas Neue'; font-size: 1.6rem; letter-spacing: 1px;
+}
+
+.no-sessions {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 12px;
+  color: var(--muted); text-align: center; padding: 40px 0;
+}
+.no-sessions-icon { font-size: 2.5rem; opacity: 0.3; }
+.no-sessions p { font-size: 0.8rem; line-height: 1.6; max-width: 200px; }
+
+
+/* ════════════════════════════════════════════
+   DASHBOARD SCREEN
+════════════════════════════════════════════ */
+#screen-dashboard { padding-top: 0; }
+
+.dash-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 28px;
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(13,15,20,0.92);
+  backdrop-filter: blur(12px);
+}
+.dash-brand { display: flex; align-items: center; gap: 12px; }
+.dash-brand-name { font-family: 'Bebas Neue'; font-size: 1.2rem; letter-spacing: 4px; color: var(--text); }
+.dash-brand-sub { font-size: 0.55rem; color: var(--muted); letter-spacing: 2px; }
+
+.dash-header-right { display: flex; align-items: center; gap: 20px; }
+.dash-clock { font-family: 'DM Mono'; font-size: 0.85rem; color: var(--muted); }
+.dash-loc { font-size: 0.7rem; color: var(--muted); }
+
+.session-timer-bar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 28px;
+  display: flex; align-items: center; gap: 20px;
+}
+.timer-label { font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); }
+.timer-countdown {
+  font-family: 'Bebas Neue'; font-size: 1.3rem; letter-spacing: 2px; color: var(--accent);
+}
+.timer-progress-wrap {
+  flex: 1; height: 4px;
+  background: var(--border); border-radius: 2px; overflow: hidden;
+}
+.timer-progress-bar {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--accent), var(--safe));
+  border-radius: 2px;
+  transition: width 1s linear;
+}
+.btn-view-report {
+  display: none;
+  align-items: center; gap: 8px;
+  background: linear-gradient(135deg, var(--safe), #1fa865);
+  color: white; border: none; border-radius: 6px;
+  padding: 8px 20px;
+  font-family: 'Bebas Neue'; font-size: 0.9rem; letter-spacing: 2px;
+  cursor: pointer;
+  animation: glow-btn 2s ease-in-out infinite;
+}
+.btn-view-report.visible { display: flex; }
+@keyframes glow-btn {
+  0%,100% { box-shadow: 0 0 12px rgba(48,201,126,0.3); }
+  50%      { box-shadow: 0 0 24px rgba(48,201,126,0.6); }
+}
+
+.dash-body { padding: 24px 28px; }
+
+/* Emotion banner */
+.emotion-banner {
+  border-radius: 10px; border: 1px solid var(--border);
+  padding: 20px 24px; margin-bottom: 20px;
+  display: flex; align-items: center; gap: 24px;
+  background: var(--card);
+  transition: border-color 0.5s, background 0.5s, box-shadow 0.5s;
+}
+.emotion-banner.safe    { border-color:rgba(48,201,126,0.4);  background:rgba(48,201,126,0.05);  box-shadow:0 0 32px rgba(48,201,126,0.08); }
+.emotion-banner.caution { border-color:rgba(245,166,35,0.4);  background:rgba(245,166,35,0.05);  box-shadow:0 0 32px rgba(245,166,35,0.08); }
+.emotion-banner.danger  { border-color:rgba(232,68,90,0.4);   background:rgba(232,68,90,0.05);   box-shadow:0 0 32px rgba(232,68,90,0.1); }
+.emotion-banner.anxiety { border-color:rgba(176,112,245,0.4); background:rgba(176,112,245,0.05); box-shadow:0 0 32px rgba(176,112,245,0.08); }
+
+.emotion-icon {
+  width: 56px; height: 56px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.6rem; flex-shrink: 0;
+  background: var(--surface);
+}
+.emotion-body { flex: 1; }
+.emotion-mode {
+  font-family: 'Bebas Neue'; font-size: 2rem; letter-spacing: 4px;
+  color: var(--text); line-height: 1;
+  transition: color 0.5s;
+}
+.emotion-banner.safe    .emotion-mode { color: var(--safe); }
+.emotion-banner.caution .emotion-mode { color: var(--caution); }
+.emotion-banner.danger  .emotion-mode { color: var(--danger); }
+.emotion-banner.anxiety .emotion-mode { color: var(--anxiety); }
+
+.emotion-sublabel { font-size: 0.65rem; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+
+/* KPI row */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr) 280px;
+  gap: 14px; margin-bottom: 20px;
+}
+.kpi-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px 18px;
+  position: relative; overflow: hidden;
+}
+.kpi-card::after {
+  content: ''; position: absolute;
+  bottom: 0; left: 0; right: 0; height: 2px;
+}
+.kpi-card.c1::after { background: #2196a8; }
+.kpi-card.c2::after { background: var(--caution); }
+.kpi-card.c3::after { background: var(--accent); }
+.kpi-card.c4::after { background: var(--anxiety); }
+.kpi-card.c5::after { background: var(--safe); }
+
+.kpi-val {
+  font-family: 'Bebas Neue'; font-size: 2.2rem;
+  letter-spacing: 1px; line-height: 1; margin: 8px 0 4px;
+}
+.kpi-card.c1 .kpi-val { color: #2196a8; }
+.kpi-card.c2 .kpi-val { color: var(--caution); }
+.kpi-card.c3 .kpi-val { color: var(--accent); }
+.kpi-card.c4 .kpi-val { color: var(--anxiety); }
+.kpi-card.c5 .kpi-val { color: var(--safe); }
+.kpi-unit { font-size: 0.58rem; color: var(--muted); letter-spacing: 1px; }
+
+/* Env card */
+.env-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.env-temp { font-family: 'Bebas Neue'; font-size: 2rem; color: var(--accent); }
+.env-row  { display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--muted); }
+.env-row span { color: var(--text); }
+.env-divider  { border: none; border-top: 1px solid var(--border); }
+.env-city { font-family: 'DM Mono'; font-size: 0.75rem; color: var(--text); }
+.aqi-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 0.6rem; font-weight: 600; letter-spacing: 1px;
+}
+.aqi-good     { background: rgba(48,201,126,0.2); color: var(--safe); }
+.aqi-fair     { background: rgba(79,140,255,0.2); color: var(--accent); }
+.aqi-moderate { background: rgba(245,166,35,0.2); color: var(--caution); }
+.aqi-poor     { background: rgba(232,68,90,0.2);  color: var(--danger); }
+.aqi-verypoor { background: rgba(232,68,90,0.3);  color: var(--danger); }
+
+/* Charts */
+.charts-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+}
+.chart-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px 18px;
+}
+.chart-title { font-size: 0.6rem; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+
+
+/* ════════════════════════════════════════════
+   REPORT SCREEN
+════════════════════════════════════════════ */
+#screen-report { background: var(--bg); }
+
+.report-header {
+  padding: 20px 28px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--surface);
+  position: sticky; top: 0; z-index: 100;
+}
+.report-header-left { display: flex; align-items: center; gap: 16px; }
+.btn-back {
+  display: flex; align-items: center; gap: 8px;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--muted); border-radius: 6px;
+  padding: 7px 14px; font-size: 0.75rem; cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+.btn-back:hover { border-color: var(--accent); color: var(--accent); }
+.report-title-sm { font-family: 'Bebas Neue'; font-size: 1rem; letter-spacing: 3px; color: var(--muted); }
+
+.report-body { padding: 32px 28px; max-width: 1200px; margin: 0 auto; }
+
+/* Report hero */
+.report-hero {
+  display: grid; grid-template-columns: 1fr auto;
+  gap: 24px; align-items: start;
+  margin-bottom: 32px;
+}
+.report-badge {
+  display: inline-block;
+  font-family: 'Bebas Neue'; font-size: 0.85rem; letter-spacing: 4px;
+  padding: 6px 18px; border-radius: 4px;
+  margin-bottom: 12px;
+}
+.report-score-big {
+  font-family: 'Bebas Neue'; font-size: 5rem; line-height: 1;
+  letter-spacing: 2px;
+}
+.report-score-label { font-size: 0.6rem; letter-spacing: 3px; color: var(--muted); text-transform: uppercase; }
+.report-meta { font-size: 0.75rem; color: var(--muted); margin-top: 8px; font-family: 'DM Mono'; }
+
+.report-summary-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 20px 24px;
+  font-size: 0.9rem; line-height: 1.7; color: var(--text);
+  border-left: 3px solid var(--accent);
+  margin-bottom: 32px;
+}
+
+/* Section blocks */
+.report-section {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 24px;
+  margin-bottom: 20px;
+}
+.report-section-title {
+  font-family: 'Bebas Neue'; font-size: 1.1rem; letter-spacing: 3px;
+  color: var(--muted); margin-bottom: 20px;
+  padding-bottom: 12px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.report-section-icon { font-size: 1rem; }
+
+/* Timeline bar */
+.timeline-bar {
+  height: 40px; border-radius: 6px; overflow: hidden;
+  display: flex; margin-bottom: 12px;
+  border: 1px solid var(--border);
+}
+.timeline-segment { height: 100%; transition: opacity 0.2s; cursor: default; }
+.timeline-segment:hover { opacity: 0.8; }
+
+.timeline-legend {
+  display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px;
+}
+.legend-item {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.72rem; color: var(--muted);
+}
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.legend-time { font-family: 'Bebas Neue'; font-size: 1rem; letter-spacing: 1px; }
+
+/* Emotion breakdown */
+.emotion-breakdown-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+.emo-breakdown-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px 16px;
+  display: flex; align-items: center; gap: 14px;
+}
+.emo-color-bar {
+  width: 4px; height: 40px; border-radius: 2px; flex-shrink: 0;
+}
+.emo-bd-mode { font-family: 'Bebas Neue'; font-size: 1rem; letter-spacing: 2px; line-height: 1; }
+.emo-bd-time { font-family: 'DM Mono'; font-size: 1.2rem; color: var(--text); margin-top: 2px; }
+
+/* AI points */
+.ai-points { display: flex; flex-direction: column; gap: 10px; }
+.ai-point {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 12px 16px;
+  background: var(--surface); border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 0.88rem; line-height: 1.5; color: var(--text);
+  transition: border-color 0.2s;
+}
+.ai-point:hover { border-color: var(--accent); }
+.ai-point-bullet {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: rgba(79,140,255,0.15); border: 1px solid rgba(79,140,255,0.3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.65rem; font-weight: 700; color: var(--accent);
+  flex-shrink: 0; margin-top: 1px;
+}
+.ai-point-bullet.warn { background: rgba(245,166,35,0.15); border-color: rgba(245,166,35,0.3); color: var(--caution); }
+.ai-point-bullet.ok   { background: rgba(48,201,126,0.15);  border-color: rgba(48,201,126,0.3);  color: var(--safe); }
+
+/* Fitness verdict */
+.fitness-card {
+  display: flex; align-items: center; gap: 20px;
+  padding: 20px 24px;
+  border-radius: 10px; border: 2px solid var(--border);
+  margin-bottom: 20px;
+  transition: border-color 0.3s, background 0.3s;
+}
+.fitness-card.safe    { border-color:rgba(48,201,126,0.5);  background:rgba(48,201,126,0.05); }
+.fitness-card.caution { border-color:rgba(245,166,35,0.5);  background:rgba(245,166,35,0.05); }
+.fitness-card.danger  { border-color:rgba(232,68,90,0.5);   background:rgba(232,68,90,0.05); }
+.fitness-icon { font-size: 2.4rem; }
+.fitness-verdict {
+  font-family: 'Bebas Neue'; font-size: 1.8rem; letter-spacing: 3px; line-height: 1;
+}
+.fitness-card.safe    .fitness-verdict { color: var(--safe); }
+.fitness-card.caution .fitness-verdict { color: var(--caution); }
+.fitness-card.danger  .fitness-verdict { color: var(--danger); }
+
+/* Sensor charts in report */
+.report-charts {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+}
+.report-chart-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px;
+}
+.report-chart-label {
+  font-size: 0.6rem; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 10px;
+}
+
+/* Stats grid */
+.stats-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+  margin-bottom: 16px;
+}
+.stat-box {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px 16px; text-align: center;
+}
+.stat-val { font-family: 'Bebas Neue'; font-size: 1.8rem; letter-spacing: 1px; color: var(--accent); }
+.stat-lbl { font-size: 0.58rem; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+
+/* Location info */
+.location-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.loc-info-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 16px;
+}
+.loc-info-card h4 { font-size: 0.6rem; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+.loc-info-card p { font-size: 0.85rem; color: var(--text); line-height: 1.6; }
+.loc-badge {
+  display: inline-block; padding: 3px 10px; border-radius: 4px;
+  font-size: 0.65rem; font-weight: 600; letter-spacing: 1px;
+  background: rgba(79,140,255,0.15); color: var(--accent);
+  border: 1px solid rgba(79,140,255,0.3);
+  margin-bottom: 8px;
+}
+.loc-badge.highway { background: rgba(245,166,35,0.15); color: var(--caution); border-color: rgba(245,166,35,0.3); }
+.loc-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.loc-list li {
+  font-size: 0.78rem; color: var(--muted);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.loc-list li span { color: var(--text); font-family: 'DM Mono'; font-size: 0.72rem; }
+
+/* Law note */
+.law-note {
+  background: rgba(79,140,255,0.06);
+  border: 1px solid rgba(79,140,255,0.2);
+  border-radius: 8px; padding: 14px 18px;
+  font-size: 0.85rem; line-height: 1.6; color: var(--text);
+  display: flex; gap: 12px; align-items: flex-start;
+}
+.law-note-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+
+/* Checklist */
+.checklist { display: flex; flex-direction: column; gap: 8px; }
+.checklist-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px;
+  background: var(--surface); border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 0.85rem; color: var(--text);
+}
+.checklist-box {
+  width: 18px; height: 18px; border: 2px solid var(--border);
+  border-radius: 4px; flex-shrink: 0;
+  cursor: pointer; transition: background 0.2s, border-color 0.2s;
+  display: flex; align-items: center; justify-content: center;
+}
+.checklist-box.checked {
+  background: var(--safe); border-color: var(--safe);
+}
+.checklist-box.checked::after { content: '✓'; color: white; font-size: 0.65rem; font-weight: 700; }
+
+/* Loading overlay for report */
+.report-loading {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(13,15,20,0.92);
+  z-index: 200;
+  flex-direction: column;
+  align-items: center; justify-content: center; gap: 20px;
+  backdrop-filter: blur(8px);
+}
+.report-loading.visible { display: flex; }
+.report-loading-title {
+  font-family: 'Bebas Neue'; font-size: 1.5rem; letter-spacing: 4px; color: var(--text);
+}
+.report-loading-sub { font-size: 0.8rem; color: var(--muted); }
+.report-loading-spinner {
+  width: 48px; height: 48px;
+  border: 3px solid var(--border); border-top-color: var(--safe);
+  border-radius: 50%; animation: spin 1s linear infinite;
+}
+
+/* Responsive */
+@media(max-width: 1100px) {
+  .landing-grid { grid-template-columns: 1fr; }
+  .landing-right { border-top: 1px solid var(--border); max-height: 280px; }
+  .kpi-row { grid-template-columns: repeat(3, 1fr); }
+  .kpi-row .env-card { grid-column: span 3; }
+}
+@media(max-width: 700px) {
+  .landing-left { padding: 36px 24px; }
+  .kpi-row { grid-template-columns: 1fr 1fr; }
+  .charts-grid, .report-charts { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .location-grid { grid-template-columns: 1fr; }
+  .report-hero { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════ LANDING ══════════════════════════════════ -->
+<div id="screen-landing" class="screen active">
+  <div class="landing-grid">
+
+    <div class="landing-left">
+      <div class="brand-mark">
+        <div class="brand-hex">ED</div>
+        <div>
+          <div class="brand-title">EMO Drive</div>
+          <div class="brand-sub-sm">Driver Emotion & Safety Monitoring · Arduino UNO</div>
+        </div>
+      </div>
+
+      <div class="landing-hero">
+        <div class="hero-eyebrow">⬡ Real-time Biometric Monitoring</div>
+        <h1 class="hero-title">Know Your<br><span>Drive.</span><br>Know Yourself.</h1>
+        <p class="hero-desc">
+          EMO Drive monitors your heart rate, body temperature, eye blinks, and air quality in real time —
+          then delivers an AI-powered safety analysis at the end of every session.
+        </p>
+
+        <div class="status-checks">
+          <div class="status-check">
+            <div class="check-dot loading" id="chk-location"></div>
+            <span id="chk-location-txt">Fetching location...</span>
+          </div>
+          <div class="status-check">
+            <div class="check-dot loading" id="chk-weather"></div>
+            <span id="chk-weather-txt">Loading weather data...</span>
+          </div>
+          <div class="status-check">
+            <div class="check-dot loading" id="chk-aqi"></div>
+            <span id="chk-aqi-txt">Loading air quality...</span>
+          </div>
+          <div class="status-check">
+            <div class="check-dot loading" id="chk-sensor"></div>
+            <span id="chk-sensor-txt">Waiting for sensor data...</span>
+          </div>
+        </div>
+
+        <button class="btn-start" id="btn-start" disabled onclick="startSession()">
+          <span class="btn-start-arrow">▶</span>
+          START 10-MIN SESSION
+        </button>
+      </div>
+
+      <div class="landing-footer">EMO DRIVE · ARDUINO UNO · INDIA</div>
+    </div>
+
+    <div class="landing-right">
+      <div class="panel-title">Previous Sessions</div>
+      <div class="session-list" id="session-list">
+        <div class="no-sessions">
+          <div class="no-sessions-icon">📋</div>
+          <p>No sessions recorded yet. Complete your first 10-minute drive to see your history here.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════ DASHBOARD ══════════════════════════════════ -->
+<div id="screen-dashboard" class="screen">
+
+  <div class="dash-header">
+    <div class="dash-brand">
+      <div class="brand-hex" style="width:34px;height:34px;font-size:0.75rem;">ED</div>
+      <div>
+        <div class="dash-brand-name">EMO Drive</div>
+        <div class="dash-brand-sub">Live Session</div>
+      </div>
+    </div>
+    <div class="dash-header-right">
+      <div class="dash-loc" id="dash-loc">Locating...</div>
+      <div class="dash-clock" id="dash-clock">--:--:--</div>
+      <div class="pill unknown" id="conn-status">Connecting</div>
+    </div>
+  </div>
+
+  <div class="session-timer-bar">
+    <div class="timer-label">Session</div>
+    <div class="timer-countdown" id="timer-countdown">10:00</div>
+    <div class="timer-progress-wrap">
+      <div class="timer-progress-bar" id="timer-progress"></div>
+    </div>
+    <button class="btn-view-report" id="btn-view-report" onclick="showReport()">
+      ✦ VIEW REPORT
+    </button>
+  </div>
+
+  <div class="dash-body">
+
+    <div class="emotion-banner unknown" id="emotion-banner">
+      <div class="emotion-icon" id="emotion-icon">🔍</div>
+      <div class="emotion-body">
+        <div class="emotion-sublabel">Detected State</div>
+        <div class="emotion-mode" id="emotion-mode">INITIALIZING...</div>
+      </div>
+      <div id="emotion-risk-pill" class="pill unknown">Unknown</div>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi-card c1">
+        <div class="label-sm">Body Temp</div>
+        <div class="kpi-val" id="kpi-temp">—</div>
+        <div class="kpi-unit">DEGREES C</div>
+      </div>
+      <div class="kpi-card c2">
+        <div class="label-sm">Heart Rate</div>
+        <div class="kpi-val" id="kpi-hr">—</div>
+        <div class="kpi-unit">BPM</div>
+      </div>
+      <div class="kpi-card c3">
+        <div class="label-sm">Gas / Alcohol</div>
+        <div class="kpi-val" id="kpi-mq">—</div>
+        <div class="kpi-unit">RAW ADC</div>
+      </div>
+      <div class="kpi-card c4">
+        <div class="label-sm">Eye Blink</div>
+        <div class="kpi-val" id="kpi-blink">—</div>
+        <div class="kpi-unit">IR STATE</div>
+      </div>
+      <div class="kpi-card c5">
+        <div class="label-sm">Blinks/Min</div>
+        <div class="kpi-val" id="kpi-blink-count">—</div>
+        <div class="kpi-unit">PER MINUTE</div>
+      </div>
+      <div class="env-card">
+        <div class="label-sm">Location & Environment</div>
+        <div>
+          <div class="env-temp"><span id="w-temp">--</span>°C</div>
+          <div style="font-size:0.75rem;color:var(--muted);" id="w-desc">Loading...</div>
+        </div>
+        <hr class="env-divider"/>
+        <div class="env-row">Feels like <span id="w-feels">--</span></div>
+        <div class="env-row">Humidity <span id="w-humid">--</span></div>
+        <div class="env-row">Wind <span id="w-wind">--</span></div>
+        <hr class="env-divider"/>
+        <div class="env-row">Air Quality
+          <span id="aqi-badge-live" class="aqi-badge aqi-fair">--</span>
+        </div>
+        <div class="env-row">PM2.5 <span id="w-pm25">--</span> µg/m³</div>
+        <hr class="env-divider"/>
+        <div class="env-city" id="env-city">Locating...</div>
+        <div style="font-size:0.6rem;color:var(--muted);" id="env-road">--</div>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">Body Temperature</div>
+        <canvas id="ch-temp" height="130"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Heart Rate (BPM)</div>
+        <canvas id="ch-hr" height="130"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Gas / Alcohol (ADC)</div>
+        <canvas id="ch-mq" height="130"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Blink Count Per Minute</div>
+        <canvas id="ch-blink" height="130"></canvas>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════ REPORT ══════════════════════════════════ -->
+<div id="screen-report" class="screen">
+
+  <div class="report-loading" id="report-loading">
+    <div class="report-loading-spinner"></div>
+    <div class="report-loading-title">Generating Report</div>
+    <div class="report-loading-sub">AI is analysing your 10-minute session...</div>
+  </div>
+
+  <div class="report-header">
+    <div class="report-header-left">
+      <button class="btn-back" onclick="showDashboard()">← Back to Dashboard</button>
+      <div class="report-title-sm">Session Report</div>
+    </div>
+    <button class="btn-back" onclick="newSession()" style="border-color:var(--accent);color:var(--accent);">
+      ▶ New Session
+    </button>
+  </div>
+
+  <div class="report-body" id="report-body">
+    <!-- Filled dynamically -->
+  </div>
+
+</div>
+
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let currentScreen   = 'landing';
+let sessionActive   = false;
+let reportReady     = false;
+let pollInterval    = null;
+let reportPollInt   = null;
+let lastData        = null;
+
+const EMOTION_COLORS = {
+  'CALM':             '#30c97e',
+  'ANGRY':            '#e8445a',
+  'DROWSY':           '#4f8cff',
+  'ANXIETY':          '#b070f5',
+  'ALCOHOL DETECTED': '#f5c842',
+  'POOR AIR QUALITY': '#ff8c00',
+  'MONITORING':       '#5a6380',
+};
+const EMOTION_ICONS = {
+  'CALM':'😌','ANGRY':'😡','DROWSY':'😴',
+  'ANXIETY':'😰','ALCOHOL DETECTED':'🍺','POOR AIR QUALITY':'😷','MONITORING':'🔍',
+};
+
+// ── Screen management ─────────────────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+  currentScreen = id;
+}
+
+function showDashboard() { showScreen('dashboard'); }
+function showReport()    {
+  showScreen('report');
+  if (reportReady) renderReport();
+  else {
+    document.getElementById('report-loading').classList.add('visible');
+    waitForReport();
+  }
+}
+
+// ── Clock ─────────────────────────────────────────────────────────────────────
+function tick() {
+  const t = new Date().toLocaleTimeString('en-GB');
+  const el = document.getElementById('dash-clock');
+  if (el) el.textContent = t;
+}
+tick(); setInterval(tick, 1000);
+
+// ── Charts ────────────────────────────────────────────────────────────────────
+function mkChart(id, color) {
+  return new Chart(document.getElementById(id).getContext('2d'), {
+    type: 'line',
+    data: { labels:[], datasets:[{ data:[], borderColor:color, borderWidth:2,
+      pointRadius:0, tension:0.4, fill:true,
+      backgroundColor: color + '18' }] },
+    options: {
+      animation: false, responsive: true,
+      plugins: { legend:{ display:false } },
+      scales: {
+        x: { ticks:{ color:'#5a6380', font:{ size:9 }, maxTicksLimit:7, maxRotation:0 },
+             grid:{ color:'#1c2030' } },
+        y: { ticks:{ color:'#5a6380', font:{ size:9 } }, grid:{ color:'#1c2030' } }
+      }
+    }
+  });
+}
+const charts = {
+  temp:  mkChart('ch-temp',  '#2196a8'),
+  hr:    mkChart('ch-hr',    '#f5a623'),
+  mq:    mkChart('ch-mq',    '#4f8cff'),
+  blink: mkChart('ch-blink', '#30c97e'),
+};
+function setChart(c, labels, data) {
+  c.data.labels = labels;
+  c.data.datasets[0].data = data;
+  c.update('none');
+}
+
+// ── AQI helpers ───────────────────────────────────────────────────────────────
+function aqiClass(aqi) {
+  return ['','aqi-good','aqi-fair','aqi-moderate','aqi-poor','aqi-verypoor'][aqi] || 'aqi-fair';
+}
+
+// ── Landing status checks ─────────────────────────────────────────────────────
+let checksReady = { location:false, weather:false, aqi:false, sensor:false };
+function updateCheck(id, ok, txt) {
+  const dot = document.getElementById('chk-' + id);
+  const lbl = document.getElementById('chk-' + id + '-txt');
+  dot.className = 'check-dot ' + (ok ? 'ok' : 'err');
+  lbl.textContent = txt;
+  checksReady[id] = ok;
+  const allReady = Object.values(checksReady).every(Boolean);
+  document.getElementById('btn-start').disabled = !allReady;
+}
+
+// ── Session ───────────────────────────────────────────────────────────────────
+function startSession() {
+  fetch('/start_session', { method:'POST' })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) {
+        sessionActive = true;
+        reportReady   = false;
+        showScreen('dashboard');
+        startPolling();
+      }
+    });
+}
+
+function newSession() {
+  reportReady = false;
+  showScreen('landing');
+  loadPreviousSessions();
+  // Reset checks
+  Object.keys(checksReady).forEach(k => checksReady[k] = false);
+  document.getElementById('btn-start').disabled = true;
+  document.getElementById('btn-view-report').classList.remove('visible');
+  document.getElementById('timer-countdown').textContent = '10:00';
+  document.getElementById('timer-progress').style.width = '0%';
+  // Re-poll landing
+  startLandingPoll();
+}
+
+// ── Polling ───────────────────────────────────────────────────────────────────
+function startPolling() {
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(fetchData, 1500);
+  fetchData();
+}
+
+async function fetchData() {
+  try {
+    const r = await fetch('/data');
+    const d = await r.json();
+    lastData = d;
+    updateDashboard(d);
+    updateLandingChecks(d);
+  } catch(e) {
+    setStatus('danger', 'ERROR');
+  }
+}
+
+function updateLandingChecks(d) {
+  if (d.location.city !== 'Unknown') updateCheck('location', true, `Location: ${d.location.city}, ${d.location.country}`);
+  if (d.weather.temp_c !== null)      updateCheck('weather',  true, `Weather: ${d.weather.temp_c}°C, ${d.weather.description}`);
+  if (d.aqi.aqi !== null)             updateCheck('aqi',      true, `Air Quality: ${d.aqi.aqi_label} (AQI ${d.aqi.aqi})`);
+  if (d.temp && d.temp.length > 0)    updateCheck('sensor',   true, `Sensors live — Temp ${parseFloat(d.temp[d.temp.length-1]).toFixed(1)}°C`);
+}
+
+function updateDashboard(d) {
+  const ts   = d.timestamps;
+  const last = ts.length - 1;
+  if (last < 0) return;
+
+  // Session timer
+  const sess = d.session;
+  if (sess.active) {
+    const remaining = Math.max(0, 600 - sess.elapsed);
+    const mins = Math.floor(remaining / 60);
+    const secs = remaining % 60;
+    document.getElementById('timer-countdown').textContent = `${mins}:${secs.toString().padStart(2,'0')}`;
+    document.getElementById('timer-progress').style.width = (sess.elapsed / 600 * 100) + '%';
+  }
+  if (sess.report_ready && !reportReady) {
+    reportReady = true;
+    document.getElementById('btn-view-report').classList.add('visible');
+    document.getElementById('timer-countdown').textContent = 'DONE';
+  }
+
+  // KPIs
+  document.getElementById('kpi-temp').textContent        = parseFloat(d.temp[last]).toFixed(1);
+  document.getElementById('kpi-hr').textContent          = d.heartrate[last];
+  document.getElementById('kpi-mq').textContent          = d.mq[last];
+  document.getElementById('kpi-blink-count').textContent = d.blink_count[last];
+  const blinkNow = d.blink[last];
+  const blinkEl  = document.getElementById('kpi-blink');
+  blinkEl.textContent = blinkNow === 1 ? 'BLINK' : 'OPEN';
+  blinkEl.style.color = blinkNow === 1 ? 'var(--danger)' : 'var(--safe)';
+
+  // Charts
+  setChart(charts.temp,  ts, d.temp);
+  setChart(charts.hr,    ts, d.heartrate);
+  setChart(charts.mq,    ts, d.mq);
+  setChart(charts.blink, ts, d.blink_count);
+
+  // Emotion banner
+  const em = d.emotion;
+  const rl = (em.risk_level || 'unknown').toLowerCase();
+  const banner = document.getElementById('emotion-banner');
+  banner.className = 'emotion-banner ' + rl;
+  document.getElementById('emotion-mode').textContent = em.mode || 'MONITORING';
+  document.getElementById('emotion-icon').textContent = EMOTION_ICONS[em.mode] || '🔍';
+  const riskPill = document.getElementById('emotion-risk-pill');
+  riskPill.className = 'pill ' + rl;
+  riskPill.textContent = rl.charAt(0).toUpperCase() + rl.slice(1);
+
+  // Weather
+  const w = d.weather;
+  document.getElementById('w-temp').textContent  = w.temp_c ?? '--';
+  document.getElementById('w-desc').textContent  = w.description ?? 'Loading...';
+  document.getElementById('w-feels').textContent = w.feels_like != null ? w.feels_like + '°C' : '--';
+  document.getElementById('w-humid').textContent = w.humidity   != null ? w.humidity   + '%'  : '--';
+  document.getElementById('w-wind').textContent  = w.wind_kph   != null ? w.wind_kph   + ' km/h' : '--';
+
+  // AQI
+  const aqi = d.aqi;
+  if (aqi.aqi) {
+    const badge = document.getElementById('aqi-badge-live');
+    badge.textContent  = aqi.aqi_label;
+    badge.className    = 'aqi-badge ' + aqiClass(aqi.aqi);
+    document.getElementById('w-pm25').textContent = aqi.pm2_5 ?? '--';
+  }
+
+  // Location & road
+  const loc = d.location;
+  document.getElementById('dash-loc').textContent = loc.city !== 'Unknown' ? `${loc.city}, ${loc.country}` : 'Locating...';
+  document.getElementById('env-city').textContent = loc.city !== 'Unknown' ? `${loc.city}, ${loc.region}` : 'Locating...';
+  if (d.road && d.road.osm_loaded) {
+    document.getElementById('env-road').textContent = `${d.road.road_type} · ${d.road.road_name}`;
+  }
+
+  setStatus('safe', 'LIVE');
+}
+
+function setStatus(type, txt) {
+  const el = document.getElementById('conn-status');
+  el.className = 'pill ' + type;
+  el.textContent = txt;
+}
+
+// ── Landing poll ──────────────────────────────────────────────────────────────
+let landingPoll = null;
+function startLandingPoll() {
+  if (landingPoll) clearInterval(landingPoll);
+  landingPoll = setInterval(async () => {
+    try {
+      const r = await fetch('/data');
+      const d = await r.json();
+      lastData = d;
+      updateLandingChecks(d);
+    } catch(e) {}
+  }, 2000);
+  fetch('/data').then(r=>r.json()).then(d => { lastData=d; updateLandingChecks(d); }).catch(()=>{});
+}
+
+// ── Report ────────────────────────────────────────────────────────────────────
+function waitForReport() {
+  if (reportPollInt) clearInterval(reportPollInt);
+  reportPollInt = setInterval(async () => {
+    const r = await fetch('/report');
+    const d = await r.json();
+    if (d.ready) {
+      clearInterval(reportPollInt);
+      reportReady = true;
+      document.getElementById('report-loading').classList.remove('visible');
+      renderReport(d.report);
+      saveSession(d.report);
+    }
+  }, 2000);
+}
+
+function renderReport(report) {
+  if (!report) {
+    fetch('/report').then(r=>r.json()).then(d => { if(d.ready) renderReport(d.report); });
+    return;
+  }
+  document.getElementById('report-loading').classList.remove('visible');
+  const body = document.getElementById('report-body');
+  const ai   = report.ai || {};
+  const badge = report.badge || {};
+  const fitnessRisk = (ai.fitness_risk || 'caution');
+
+  // ── Hero ──
+  const scoreColor = badge.color || '#f5a623';
+  let heroHTML = `
+    <div class="report-hero">
+      <div>
+        <div class="report-badge" style="background:${scoreColor}22;color:${scoreColor};border:1px solid ${scoreColor}55;">
+          ${badge.label || 'SESSION COMPLETE'}
+        </div>
+        <div class="report-score-big display" style="color:${scoreColor};">${report.safety_score}</div>
+        <div class="report-score-label">Safety Score / 100</div>
+        <div class="report-meta">${report.session_time || ''} &nbsp;·&nbsp; ${report.location || ''}</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="fitness-card ${fitnessRisk}" style="flex-direction:column;align-items:flex-start;gap:8px;">
+          <div class="fitness-icon">${fitnessRisk==='safe'?'✅':fitnessRisk==='danger'?'🚫':'⚠️'}</div>
+          <div class="fitness-verdict">${ai.fitness_to_drive || 'DRIVE WITH CAUTION'}</div>
+        </div>
+      </div>
+    </div>`;
+
+  // ── Session summary ──
+  heroHTML += `<div class="report-summary-card">${ai.session_summary || 'Session complete.'}</div>`;
+
+  // ── Avg stats ──
+  heroHTML += `
+    <div class="report-section">
+      <div class="report-section-title"><span class="report-section-icon">📊</span> Session Averages</div>
+      <div class="stats-grid">
+        <div class="stat-box"><div class="stat-val">${report.avg_bpm}</div><div class="stat-lbl">Avg BPM</div></div>
+        <div class="stat-box"><div class="stat-val">${report.avg_temp}°</div><div class="stat-lbl">Avg Temp</div></div>
+        <div class="stat-box"><div class="stat-val">${report.avg_blink}</div><div class="stat-lbl">Avg Blinks/Min</div></div>
+        <div class="stat-box"><div class="stat-val">${report.peak_bpm}</div><div class="stat-lbl">Peak BPM</div></div>
+      </div>
+    </div>`;
+
+  // ── Timeline bar ──
+  const emoLog   = report.emotion_log || [];
+  const total    = emoLog.length || 1;
+  const emoCounts = {};
+  emoLog.forEach(e => { emoCounts[e.mode] = (emoCounts[e.mode]||0) + 1; });
+
+  let timelineSegs = '';
+  Object.entries(emoCounts).forEach(([mode, count]) => {
+    const pct = (count / total * 100).toFixed(1);
+    const color = EMOTION_COLORS[mode] || '#5a6380';
+    timelineSegs += `<div class="timeline-segment" style="width:${pct}%;background:${color};" title="${mode}: ${pct}%"></div>`;
+  });
+
+  let legendHTML = '';
+  const emoBreakdown = report.emotion_breakdown || [];
+  emoBreakdown.forEach(item => {
+    const color = EMOTION_COLORS[item.mode] || '#5a6380';
+    legendHTML += `
+      <div class="legend-item">
+        <div class="legend-dot" style="background:${color};"></div>
+        <span>${item.mode}</span>
+        <span class="legend-time" style="color:${color};">${item.label}</span>
+      </div>`;
+  });
+
+  heroHTML += `
+    <div class="report-section">
+      <div class="report-section-title"><span class="report-section-icon">⏱</span> Emotion Timeline</div>
+      <div class="timeline-bar">${timelineSegs}</div>
+      <div class="timeline-legend">${legendHTML}</div>
+    </div>`;
+
+  // ── Emotion breakdown cards ──
+  let emoCards = '';
+  emoBreakdown.forEach(item => {
+    const color = EMOTION_COLORS[item.mode] || '#5a6380';
+    emoCards += `
+      <div class="emo-breakdown-card">
+        <div class="emo-color-bar" style="background:${color};"></div>
+        <div>
+          <div class="emo-bd-mode display" style="color:${color};">${item.mode}</div>
+          <div class="emo-bd-time">Spent ${item.label}</div>
+        </div>
+      </div>`;
+  });
+
+  heroHTML += `
+    <div class="report-section">
+      <div class="report-section-title"><span class="report-section-icon">🧠</span> Emotion Breakdown</div>
+      <div class="emotion-breakdown-grid">${emoCards}</div>
+    </div>`;
+
+  // ── Sensor charts ──
+  heroHTML += `
+    <div class="report-section">
+      <div class="report-section-title"><span class="report-section-icon">📈</span> Sensor Trends</div>
+      <div class="report-charts">
+        <div class="report-chart-card">
+          <div class="report-chart-label">Body Temperature (°C)</div>
+          <canvas id="r-ch-temp" height="110"></canvas>
+        </div>
+        <div class="report-chart-card">
+          <div class="report-chart-label">Heart Rate (BPM)</div>
+          <canvas id="r-ch-hr" height="110"></canvas>
+        </div>
+        <div class="report-chart-card">
+          <div class="report-chart-label">Gas / Alcohol (ADC)</div>
+          <canvas id="r-ch-mq" height="110"></canvas>
+        </div>
+        <div class="report-chart-card">
+          <div class="report-chart-label">Blinks Per Minute</div>
+          <canvas id="r-ch-blink" height="110"></canvas>
+        </div>
+      </div>
+    </div>`;
+
+  // ── Location & Road ──
+  const road = report.road || {};
+  const loc  = report.location || 'Unknown';
+  const circ = report.circadian || {};
+  let hospHTML = '<p style="color:var(--muted);font-size:0.8rem;">None found nearby</p>';
+  if (road.nearby_hospitals && road.nearby_hospitals.length) {
+    hospHTML = `<ul class="loc-list">` + road.nearby_hospitals.map(h =>
+      `<li>${h.name} <span>${h.dist_km} km</span></li>`).join('') + `</ul>`;
+  }
+  let restHTML = '<p style="color:var(--muted);font-size:0.8rem;">None found nearby</p>';
+  if (road.nearby_rest && road.nearby_rest.length) {
+    restHTML = `<ul class="loc-list">` + road.nearby_rest.map(r =>
+      `<li>${r.name} <span>${r.dist_km} km</span></li>`).join('') + `</ul>`;
+  }
+
+  heroHTML += `
+    <div class="report-section">
+      <div class="report-section-title"><span class="report-section-icon">📍</span> Location & Road Intelligence</div>
+      <div class="location-grid">
+        <div class="loc-info-card">
+          <h4>Road Context</h4>
+          <div class="loc-badge ${road.is_highway ? 'highway' : ''}">${road.road_type || 'Unknown'}</div>
+          <p>${road.road_name || 'Unknown Road'}</p>
+          <p style="margin-top:8px;font-size:0.78rem;color:var(--muted);">📍 ${loc}</p>
+        </div>
+        <div class="loc-info-card">
+          <h4>Time of Day Risk</h4>
+          <div class="loc-badge">${circ.label || 'Normal'}</div>
+          <p>${circ.reason || '—'}</p>
+        </div>
+        <div class="loc-info-card">
+          <h4>Nearby Hospitals</h4>
+          ${hospHTML}
+        </div>
+        <div class="loc-info-card">
+          <h4>Rest Stops / Fuel</h4>
+          ${restHTML}
+        </div>
+      </div>
+    </div>`;
+
+  // ── Weather & AQI ──
+  const wthr = report.weather || {};
+  const aqi  = report.aqi     || {};
+  heroHTML += `
+    <div class="report-section">
+      <div class="report-section-title"><span class="report-section-icon">🌤</span> Weather & Air Quality During Session</div>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-val">${wthr.temp_c ?? '--'}°</div><div class="stat-lbl">Temperature</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val">${wthr.humidity ?? '--'}%</div><div class="stat-lbl">Humidity</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val">${aqi.aqi ?? '--'}</div><div class="stat-lbl">AQI Index</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val">${aqi.pm2_5 ?? '--'}</div><div class="stat-lbl">PM2.5 µg/m³</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;font-size:0.85rem;color:var(--muted);display:flex;gap:24px;flex-wrap:wrap;">
+        <span>Conditions: <strong style="color:var(--text);">${wthr.description || 'Unknown'}</strong></span>
+        <span>Wind: <strong style="color:var(--text);">${wthr.wind_kph ?? '--'} km/h</strong></span>
+        <span>Air: <strong style="color:var(--text);">${aqi.aqi_label || 'Unknown'}</strong></span>
+        ${aqi.is_polluted ? '<span style="color:var(--air);">⚠ High ambient pollution detected — gas readings adjusted accordingly</span>' : ''}
+      </div>
+    </div>`;
+
+  // ── AI Analysis ──
+  const whyPoints = (ai.why_it_happened || []).map((p,i) =>
+    `<div class="ai-point"><div class="ai-point-bullet warn">${i+1}</div><span>${p}</span></div>`).join('');
+  const recPoints = (ai.recommendations || []).map((p,i) =>
+    `<div class="ai-point"><div class="ai-point-bullet ok">✓</div><span>${p}</span></div>`).join('');
+
+  heroHTML += `
+    <div class="report-section">
+      <div class="report-section-title"><span class="report-section-icon">🤖</span> AI Analysis</div>
+      <div style="margin-bottom:16px;">
+        <div class="label-sm" style="margin-bottom:10px;">Why This Happened</div>
+        <div class="ai-points">${whyPoints}</div>
+      </div>
+      <div>
+        <div class="label-sm" style="margin-bottom:10px;">Recommendations</div>
+        <div class="ai-points">${recPoints}</div>
+      </div>
+    </div>`;
+
+  // ── Pre-drive checklist ──
+  const checkItems = (ai.pre_drive_checklist || []).map((item,i) =>
+    `<div class="checklist-item">
+      <div class="checklist-box" id="chkbox-${i}" onclick="toggleCheck(${i})"></div>
+      <span>${item}</span>
+    </div>`).join('');
+
+  heroHTML += `
+    <div class="report-section">
+      <div class="report-section-title"><span class="report-section-icon">✅</span> Pre-Drive Checklist for Next Time</div>
+      <div class="checklist">${checkItems}</div>
+    </div>`;
+
+  // ── Law note ──
+  if (ai.law_note) {
+    heroHTML += `
+      <div class="report-section">
+        <div class="report-section-title"><span class="report-section-icon">⚖️</span> Know Your Responsibilities</div>
+        <div class="law-note">
+          <div class="law-note-icon">📜</div>
+          <div>${ai.law_note}</div>
+        </div>
+      </div>`;
+  }
+
+  heroHTML += `<div style="height:40px;"></div>`;
+
+  body.innerHTML = heroHTML;
+
+  // Draw report charts
+  setTimeout(() => {
+    const ts = report.timestamps || [];
+    function mkRChart(id, color, data) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      new Chart(el.getContext('2d'), {
+        type: 'line',
+        data: { labels: ts, datasets: [{ data, borderColor: color, borderWidth: 1.5,
+          pointRadius: 0, tension: 0.4, fill: true, backgroundColor: color + '18' }] },
+        options: { animation: false, responsive: true,
+          plugins: { legend:{ display:false } },
+          scales: {
+            x: { ticks:{ color:'#5a6380', font:{size:8}, maxTicksLimit:6, maxRotation:0 }, grid:{ color:'#1c2030' } },
+            y: { ticks:{ color:'#5a6380', font:{size:8} }, grid:{ color:'#1c2030' } }
+          }
+        }
+      });
+    }
+    mkRChart('r-ch-temp',  '#2196a8', report.temp_series  || []);
+    mkRChart('r-ch-hr',    '#f5a623', report.bpm_series   || []);
+    mkRChart('r-ch-mq',    '#4f8cff', report.gas_series   || []);
+    mkRChart('r-ch-blink', '#30c97e', report.blink_series || []);
+  }, 100);
+}
+
+function toggleCheck(i) {
+  const box = document.getElementById('chkbox-' + i);
+  box.classList.toggle('checked');
+}
+
+// ── Previous sessions (localStorage) ─────────────────────────────────────────
+function saveSession(report) {
+  const sessions = JSON.parse(localStorage.getItem('emodrive_sessions') || '[]');
+  sessions.unshift({
+    time:     report.session_time,
+    location: report.location,
+    score:    report.safety_score,
+    badge:    report.badge,
+    report:   report,
+  });
+  if (sessions.length > 10) sessions.pop();
+  localStorage.setItem('emodrive_sessions', JSON.stringify(sessions));
+  loadPreviousSessions();
+}
+
+function loadPreviousSessions() {
+  const sessions = JSON.parse(localStorage.getItem('emodrive_sessions') || '[]');
+  const list = document.getElementById('session-list');
+  if (!sessions.length) {
+    list.innerHTML = `<div class="no-sessions">
+      <div class="no-sessions-icon">📋</div>
+      <p>No sessions recorded yet. Complete your first 10-minute drive to see your history here.</p>
+    </div>`;
+    return;
+  }
+  list.innerHTML = sessions.map((s,i) => {
+    const color = (s.badge && s.badge.color) || '#f5a623';
+    return `<div class="session-card" onclick="viewOldSession(${i})">
+      <div class="session-card-top">
+        <div class="session-card-score display" style="color:${color};">${s.score}</div>
+        <div class="pill ${s.score>=70?'safe':s.score>=50?'caution':'danger'}">${s.badge&&s.badge.label||'--'}</div>
+      </div>
+      <div class="session-card-time">${s.time || '--'}</div>
+      <div class="session-card-location">${s.location || '--'}</div>
+    </div>`;
+  }).join('');
+}
+
+function viewOldSession(i) {
+  const sessions = JSON.parse(localStorage.getItem('emodrive_sessions') || '[]');
+  if (!sessions[i]) return;
+  showScreen('report');
+  document.getElementById('report-loading').classList.remove('visible');
+  renderReport(sessions[i].report);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadPreviousSessions();
+startLandingPoll();
+</script>
+</body>
+</html>
