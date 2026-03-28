@@ -25,14 +25,14 @@ SESSION_DURATION  = 600          # 10 minutes in seconds
 
 OPENWEATHER_KEY   = "5961f3b74746d180f3ea6bb759c17e77"
 
-NIM_API_KEY       = "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"
+NIM_API_KEY       = "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"
 NIM_BASE_URL      = "https://integrate.api.nvidia.com/v1/chat/completions"
 NIM_MODEL         = "nvidia/llama-3.3-nemotron-super-49b-v1"
 
 AQI_UNHEALTHY_THRESHOLD = 3     # OWM AQI scale 1-5; 3=Moderate, 4=Poor, 5=Very Poor
 
 app = Flask(__name__)
-lock = threading.Lock()
+lock = threading.RLock()
 
 # ── Session state ─────────────────────────────────────────────────────────────
 session = {
@@ -663,10 +663,14 @@ def read_serial():
                         data_store["blink_count"].append(completed_blinks)
 
                         global emotion_last_updated
-                        result = derive_emotion(temp, bpm, gas, completed_blinks)
-                        if result:
-                            emotion_data.update(result)
+                        if DEMO_OVERRIDE:
+                            emotion_data.update(_demo_emotions[DEMO_OVERRIDE])
                             emotion_last_updated = now_ts
+                        else:
+                            result = derive_emotion(temp, bpm, gas, completed_blinks)
+                            if result:
+                                emotion_data.update(result)
+                                emotion_last_updated = now_ts
 
                         if session["active"]:
                             data_store["emotion_log"].append({
@@ -680,8 +684,8 @@ def read_serial():
         print(f"[Serial] Error: {e} — switching to demo mode")
         demo_mode()
 
-
 def demo_mode():
+    print("[Demo] Demo mode thread started.")  
     import random, math
     global emotion_last_updated
     i = 0
@@ -689,6 +693,11 @@ def demo_mode():
     lo,hi = _blink_ranges.get(DEMO_OVERRIDE,(10,20)) if DEMO_OVERRIDE else (10,20)
     blink_val    = __import__('random').randint(lo,hi)
     blink_window = time.time()
+
+    # Initialise blink count immediately so graph is non-zero from second 1
+    if DEMO_OVERRIDE:
+        with lock:
+            blink_minute_data["last_minute_count"] = blink_val
 
     while True:
         now    = datetime.now().strftime("%H:%M:%S")
@@ -720,9 +729,9 @@ def demo_mode():
                 data_store["mq"].append(gas)
                 data_store["blink"].append(blink)
                 data_store["blink_count"].append(completed_blinks)
-                result = derive_emotion(temp, bpm, gas, completed_blinks)
-                if result:
-                    emotion_data.update(result)
+                # Use preset emotion directly — no derive_emotion override
+                emotion_data.update(_demo_emotions[DEMO_OVERRIDE])
+                emotion_last_updated = now_ts
                 if session["active"]:
                     data_store["emotion_log"].append({
                         "time": now,
@@ -811,11 +820,11 @@ def get_report():
     return jsonify({"ready": True, "report": data})
 
 
-# ── Startup ───────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     TRAFFIC_LAW_QA = load_traffic_law("traffic_rules_dataset.jsonl")
-    fetch_location()
-    threading.Thread(target=read_serial,   daemon=True).start()
-    threading.Thread(target=fetch_weather, daemon=True).start()
-    threading.Thread(target=session_timer, daemon=True).start()
+    threading.Thread(target=fetch_location,  daemon=True).start()
+    threading.Thread(target=read_serial,     daemon=True).start()
+    threading.Thread(target=fetch_weather,   daemon=True).start()
+    threading.Thread(target=fetch_aqi,       daemon=True).start()
+    threading.Thread(target=session_timer,   daemon=True).start()
     app.run(debug=False, host="0.0.0.0", port=5000)
