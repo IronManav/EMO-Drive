@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 import argparse
 import serial
 import threading
@@ -21,13 +21,13 @@ DEMO_OVERRIDE = args.demo
 SERIAL_PORT       = "COM3"
 BAUD_RATE         = 9600
 MAX_POINTS        = 700          # 10 min x ~1 reading/sec + buffer
-SESSION_DURATION  = 600          # 10 minutes in seconds
+SESSION_DURATION  = 60          # 10 minutes in seconds
 
 OPENWEATHER_KEY   = "5961f3b74746d180f3ea6bb759c17e77"
 
 NIM_API_KEY       = "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"
 NIM_BASE_URL      = "https://integrate.api.nvidia.com/v1/chat/completions"
-NIM_MODEL         = "nvidia/llama-3.3-nemotron-super-49b-v1"
+NIM_MODEL         = "meta/llama-3.3-70b-instruct"
 
 AQI_UNHEALTHY_THRESHOLD = 3     # OWM AQI scale 1-5; 3=Moderate, 4=Poor, 5=Very Poor
 
@@ -188,7 +188,7 @@ def derive_emotion(temp, bpm, gas, blink_count):
             return {"mode": "ALCOHOL DETECTED", "risk_level": "danger",  "color": "#FFD700"}
     elif bpm < 65 and blink_count < 8:
         return {"mode": "DROWSY",           "risk_level": "danger",  "color": "#4169E1"}
-    elif 85 <= bpm <= 100 and blink_count > 20:
+    elif 85 <= bpm <= 100 and blink_count > 17:
         return {"mode": "ANXIETY",          "risk_level": "anxiety", "color": "#9370DB"}
     elif bpm > 100 and temp > 37.2:
         return {"mode": "ANGRY",            "risk_level": "caution", "color": "#DC143C"}
@@ -226,11 +226,13 @@ def fetch_weather():
         try:
             with lock:
                 city = location_data["city"]
-            if city == "Unknown":
+                lat  = location_data["lat"]
+                lon  = location_data["lon"]
+            if city == "Unknown" or (lat == 0.0 and lon == 0.0):
                 time.sleep(2)
                 continue
             url = (f"http://api.openweathermap.org/data/2.5/weather"
-                   f"?q={city}&appid={OPENWEATHER_KEY}&units=metric")
+                   f"?lat={lat}&lon={lon}&appid={OPENWEATHER_KEY}&units=metric")
             r = requests.get(url, timeout=15)
             d = r.json()
             if r.status_code == 200:
@@ -487,22 +489,35 @@ Respond with ONLY this JSON:
   "session_summary": "<2 sentence plain English summary of the overall drive>"
 }}"""
 
+    print(f"[NIM] Sending request... prompt chars: {len(system_prompt + user_prompt)}")
     try:
         r = requests.post(NIM_BASE_URL,
             headers={"Authorization": f"Bearer {NIM_API_KEY}", "Content-Type": "application/json"},
             json={"model": NIM_MODEL, "messages": [
-                {"role":"system","content":system_prompt},
-                {"role":"user",  "content":user_prompt},
-            ], "max_tokens":600, "temperature":0.3, "top_p":0.7},
+                {"role":"system","content":"detailed thinking off"},
+                {"role":"user",  "content":system_prompt + "\n\n" + user_prompt},
+            ], "max_tokens":2000, "temperature":0.6, "top_p":0.7},
             timeout=90)
         r.raise_for_status()
         raw = r.json()["choices"][0]["message"]["content"].strip()
+        print(f"[NIM] Raw response ({len(raw)} chars): {raw}")
         raw = re.sub(r"```json|```","",raw).strip()
         start = raw.find("{"); end = raw.rfind("}") + 1
         if start != -1 and end > start:
             return json.loads(raw[start:end])
+        else:
+            print(f"[NIM] Could not find JSON object in response")
+    except requests.exceptions.Timeout:
+        print(f"[NIM] TIMEOUT — request exceeded 90s")
+    except requests.exceptions.ConnectionError as e:
+        print(f"[NIM] CONNECTION ERROR: {e}")
+    except requests.exceptions.HTTPError as e:
+        print(f"[NIM] HTTP ERROR {e.response.status_code}: {e.response.text[:500]}")
+    except json.JSONDecodeError as e:
+        print(f"[NIM] JSON PARSE ERROR: {e}")
+        print(f"[NIM] Attempted to parse: {raw[:500]}")
     except Exception as e:
-        print(f"[NIM] Error: {e}")
+        print(f"[NIM] UNEXPECTED ERROR ({type(e).__name__}): {e}")
 
     return {
         "fitness_to_drive":   "DRIVE WITH CAUTION",
@@ -617,7 +632,7 @@ def read_serial():
 
                     import random as _r
                     _now_ts = time.time()
-                    _blink_ranges = {'c':(15,20),'a':(10,16),'d':(2,7),'x':(21,32),'l':(10,18)}
+                    _blink_ranges = {'c':(15,20),'a':(10,16),'d':(2,7),'x':(18,24),'l':(10,18)}
 
                     if DEMO_OVERRIDE:
                         if not hasattr(read_serial,'demo_blink_val'):
@@ -642,18 +657,7 @@ def read_serial():
 
                     with lock:
                         now_ts = time.time()
-                        if DEMO_OVERRIDE:
-                            completed_blinks = blink_count
-                        else:
-                            if blink_minute_data["window_start"] == 0:
-                                blink_minute_data["window_start"] = now_ts
-                            if now_ts - blink_minute_data["window_start"] >= 60:
-                                blink_minute_data["last_minute_count"] = blink_minute_data["current_count"]
-                                blink_minute_data["current_count"]     = 0
-                                blink_minute_data["window_start"]      = now_ts
-                            if blink == 1:
-                                blink_minute_data["current_count"] += 1
-                            completed_blinks = blink_minute_data["last_minute_count"]
+                        completed_blinks = blink_count
 
                         data_store["timestamps"].append(now)
                         data_store["temp"].append(temp)
@@ -664,7 +668,11 @@ def read_serial():
 
                         global emotion_last_updated
                         if DEMO_OVERRIDE:
-                            emotion_data.update(_demo_emotions[DEMO_OVERRIDE])
+                            if DEMO_OVERRIDE != 'l' and _r.random() < 0.10:
+                                other_keys = [k for k in _demo_map if k != DEMO_OVERRIDE and k != 'l']
+                                emotion_data.update(_demo_map[_r.choice(other_keys)])
+                            else:
+                                emotion_data.update(_demo_map[DEMO_OVERRIDE])
                             emotion_last_updated = now_ts
                         else:
                             result = derive_emotion(temp, bpm, gas, completed_blinks)
@@ -689,15 +697,10 @@ def demo_mode():
     import random, math
     global emotion_last_updated
     i = 0
-    _blink_ranges = {'c':(15,20),'a':(10,16),'d':(2,7),'x':(21,32),'l':(10,18)}
+    _blink_ranges = {'c':(15,20),'a':(10,16),'d':(2,7),'x':(18,24),'l':(10,18)}
     lo,hi = _blink_ranges.get(DEMO_OVERRIDE,(10,20)) if DEMO_OVERRIDE else (10,20)
     blink_val    = __import__('random').randint(lo,hi)
     blink_window = time.time()
-
-    # Initialise blink count immediately so graph is non-zero from second 1
-    if DEMO_OVERRIDE:
-        with lock:
-            blink_minute_data["last_minute_count"] = blink_val
 
     while True:
         now    = datetime.now().strftime("%H:%M:%S")
@@ -720,7 +723,7 @@ def demo_mode():
                 temp=round(36.9+random.uniform(-0.05,0.05),2);bpm=random.randint(91,93);gas=random.randint(100,200)
             elif DEMO_OVERRIDE=='l':
                 temp=round(37.0+random.uniform(-0.05,0.05),2);bpm=random.randint(97,99);gas=random.randint(450,950)
-            completed_blinks = blink_val
+            completed_blinks = min(blink_val, round(blink_val * min((now_ts - blink_window) / 60.0, 1.0)))
             blink = 0
             with lock:
                 data_store["timestamps"].append(now)
@@ -729,8 +732,13 @@ def demo_mode():
                 data_store["mq"].append(gas)
                 data_store["blink"].append(blink)
                 data_store["blink_count"].append(completed_blinks)
-                # Use preset emotion directly — no derive_emotion override
-                emotion_data.update(_demo_emotions[DEMO_OVERRIDE])
+                # Use preset emotion 90% of time, sprinkle others 10%
+                # Alcohol is never sprinkled in or replaced — only shows when explicitly set
+                if DEMO_OVERRIDE != 'l' and random.random() < 0.10:
+                    other_keys = [k for k in _demo_map if k != DEMO_OVERRIDE and k != 'l']
+                    emotion_data.update(_demo_map[random.choice(other_keys)])
+                else:
+                    emotion_data.update(_demo_map[DEMO_OVERRIDE])
                 emotion_last_updated = now_ts
                 if session["active"]:
                     data_store["emotion_log"].append({
@@ -790,6 +798,38 @@ def get_data():
         }
     return jsonify(payload)
 
+@app.route("/set_location", methods=["POST"])
+def set_location():
+    d = request.get_json()
+    lat = d.get("lat")
+    lon = d.get("lon")
+    if lat is None or lon is None:
+        return jsonify({"ok": False})
+    # Reverse geocode with Nominatim
+    try:
+        headers = {"User-Agent": "EMODrive/1.0 (college project)"}
+        r = requests.get(
+            f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json",
+            headers=headers, timeout=10)
+        nd = r.json()
+        addr = nd.get("address", {})
+        city   = addr.get("city") or addr.get("town") or addr.get("village") or "Unknown"
+        region = addr.get("state", "Unknown")
+        country= addr.get("country", "Unknown")
+    except Exception as e:
+        print(f"[Location] Reverse geocode error: {e}")
+        city = "Unknown"; region = "Unknown"; country = "Unknown"
+    with lock:
+        location_data.update({
+            "city": city, "region": region, "country": country,
+            "lat": lat, "lon": lon,
+        })
+    print(f"[Location] GPS override → {city}, {region}, {country}")
+    threading.Thread(target=fetch_road_data, daemon=True).start()
+    threading.Thread(target=fetch_aqi,       daemon=True).start()
+    return jsonify({"ok": True, "city": city, "region": region, "country": country})
+
+
 @app.route("/start_session", methods=["POST"])
 def start_session():
     with lock:
@@ -823,7 +863,7 @@ def get_report():
 if __name__ == "__main__":
     TRAFFIC_LAW_QA = load_traffic_law("traffic_rules_dataset.jsonl")
     threading.Thread(target=fetch_location,  daemon=True).start()
-    threading.Thread(target=read_serial,     daemon=True).start()
+    threading.Thread(target=demo_mode if DEMO_OVERRIDE else read_serial, daemon=True).start()
     threading.Thread(target=fetch_weather,   daemon=True).start()
     threading.Thread(target=fetch_aqi,       daemon=True).start()
     threading.Thread(target=session_timer,   daemon=True).start()
