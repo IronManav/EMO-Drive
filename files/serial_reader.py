@@ -3,106 +3,174 @@ import random
 import math
 import serial
 from datetime import datetime
-import config
-from config import (lock, data_store, emotion_data, session,
-                    SERIAL_PORT, BAUD_RATE, DEMO_OVERRIDE, DEMO_MAP)
+
+import config as _cfg
+from config import lock, data_store, emotion_data, session, SERIAL_PORT, BAUD_RATE
 from emotion import derive_emotion
 
-# Module-level reference so session.py can read/write it via config
-import config as _cfg
+# ── Demo sensor value generators — one place, used by both read_serial and demo_mode ──
+_BLINK_RANGES = {
+    'c': (15, 20), 'a': (10, 16), 'd': (2, 7), 'x': (18, 24), 'l': (10, 18),
+}
+
+def _demo_sensors(key):
+    """Return (temp, bpm, gas) for a given demo key."""
+    if key == 'c': return round(36.6 + random.uniform(-0.05, 0.05), 2), random.randint(74,  76),  random.randint(100, 200)
+    if key == 'a': return round(37.6 + random.uniform(-0.05, 0.05), 2), random.randint(108, 112), random.randint(100, 200)
+    if key == 'd': return round(36.2 + random.uniform(-0.05, 0.05), 2), random.randint(57,  59),  random.randint(100, 200)
+    if key == 'x': return round(36.9 + random.uniform(-0.05, 0.05), 2), random.randint(91,  93),  random.randint(100, 200)
+    if key == 'l': return round(37.0 + random.uniform(-0.05, 0.05), 2), random.randint(97,  99),  random.randint(450, 950)
+    return round(36.5 + random.uniform(-0.2, 0.2), 2), random.randint(70, 80), random.randint(100, 200)
 
 
+def _apply_emotion(demo_override, demo_map, now_ts):
+    """Set emotion_data from demo preset. No random drift — preset stays fixed."""
+    emotion_data.update(demo_map[demo_override])
+    _cfg.emotion_last_updated = now_ts
+
+
+def _store_sample(now, temp, bpm, gas, blink, blink_count, demo_override, demo_map, now_ts):
+    """Append one sensor sample and update emotion. Must be called inside lock."""
+    data_store["timestamps"].append(now)
+    data_store["temp"].append(temp)
+    data_store["heartrate"].append(bpm)
+    data_store["mq"].append(gas)
+    data_store["blink"].append(blink)
+    data_store["blink_count"].append(blink_count)
+
+    if demo_override:
+        # 10% chance of briefly showing a related emotion — keeps demo dynamic
+        if demo_override != 'l' and random.random() < 0.10:
+            other_keys = [k for k in demo_map if k != demo_override and k != 'l']
+            emotion_data.update(demo_map[random.choice(other_keys)])
+            _cfg.emotion_last_updated = now_ts
+        else:
+            _apply_emotion(demo_override, demo_map, now_ts)
+    else:
+        result = derive_emotion(temp, bpm, gas, blink_count)
+        if result:
+            emotion_data.update(result)
+            _cfg.emotion_last_updated = now_ts
+
+    if session["active"]:
+        data_store["emotion_log"].append({
+            "time":       now,
+            "mode":       emotion_data["mode"],
+            "risk_level": emotion_data["risk_level"],
+        })
+
+
+# ── Blink state for demo_mode (climbs linearly to target over 60 s) ───────────
+class _BlinkTracker:
+    def __init__(self, demo_key):
+        lo, hi        = _BLINK_RANGES.get(demo_key, (10, 20))
+        self.target   = random.randint(lo, hi)
+        self.window   = time.time()
+
+    def get(self, now_ts):
+        elapsed = now_ts - self.window
+        if elapsed >= 60:
+            lo, hi      = _BLINK_RANGES.get(_cfg.DEMO_OVERRIDE, (10, 20))
+            self.target = random.randint(lo, hi)
+            self.window = now_ts
+            elapsed     = 0
+        # Linearly ramp from 0 to target over the 60-second window
+        # so the graph is non-zero from second ~3 and looks realistic
+        return min(self.target, round(self.target * min(elapsed / 60.0, 1.0)))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 def read_serial():
+    """
+    Primary data thread. Reads CSV from Arduino over serial.
+    Falls back to demo_mode() if no serial port is found.
+    If DEMO_OVERRIDE is set, sensor values are replaced with preset values
+    but the Arduino still drives the LCD and actuators via serial commands.
+    """
+    DEMO_OVERRIDE = _cfg.DEMO_OVERRIDE
+    DEMO_MAP      = _cfg.DEMO_MAP
+
     try:
         ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=2)
         print(f"[Serial] Connected to {SERIAL_PORT}")
-        if DEMO_OVERRIDE:
-            cmd_map = {'c': 'C', 'a': 'A', 'd': 'D', 'x': 'X', 'l': 'L'}
-            cmd = cmd_map.get(DEMO_OVERRIDE)
-            if cmd:
-                time.sleep(3)
-                ser.write(cmd.encode()); time.sleep(0.1); ser.write(cmd.encode())
 
-        _blink_ranges = {'c': (15, 20), 'a': (10, 16), 'd': (2, 7), 'x': (18, 24), 'l': (10, 18)}
+        # Tell Arduino which demo mode to display on its LCD
+        if DEMO_OVERRIDE:
+            cmd = DEMO_OVERRIDE.upper()
+            time.sleep(3)
+            ser.write(cmd.encode())
+            time.sleep(0.1)
+            ser.write(cmd.encode())
+
+        blink_tracker = _BlinkTracker(DEMO_OVERRIDE) if DEMO_OVERRIDE else None
 
         while True:
-            line = ser.readline().decode("utf-8").strip()
+            line = ser.readline().decode("utf-8", errors="ignore").strip()
             if not line or not line[0].isdigit():
+                # Check for fail-safe marker from Arduino
+                if line == "FAILSAFE":
+                    with lock:
+                        emotion_data.update({
+                            "mode":       "FAIL SAFE",
+                            "risk_level": "failsafe",
+                            "color":      "#FF0000",
+                        })
+                        _cfg.emotion_last_updated = time.time()
                 continue
             parts = line.split(",")
-            if len(parts) == 5:
-                try:
-                    temp, bpm, gas, blink, blink_count = parts
-                    temp = float(temp); bpm = int(bpm); gas = int(gas)
-                    blink = int(blink); blink_count = int(blink_count)
-                    now     = datetime.now().strftime("%H:%M:%S")
-                    _now_ts = time.time()
+            if len(parts) != 5:
+                continue
+            try:
+                temp, bpm, gas, blink, blink_count = parts
+                temp        = float(temp)
+                bpm         = int(bpm)
+                gas         = int(gas)
+                blink       = int(blink)
+                blink_count = int(blink_count)
+            except ValueError:
+                continue
 
-                    if DEMO_OVERRIDE:
-                        if not hasattr(read_serial, 'demo_blink_val'):
-                            lo, hi = _blink_ranges.get(DEMO_OVERRIDE, (10, 20))
-                            read_serial.demo_blink_val    = random.randint(lo, hi)
-                            read_serial.demo_blink_window = _now_ts
-                        if _now_ts - read_serial.demo_blink_window >= 60:
-                            lo, hi = _blink_ranges.get(DEMO_OVERRIDE, (10, 20))
-                            read_serial.demo_blink_val    = random.randint(lo, hi)
-                            read_serial.demo_blink_window = _now_ts
-                        if DEMO_OVERRIDE == 'c':
-                            temp = round(36.6 + random.uniform(-0.05, 0.05), 2); bpm = random.randint(74, 76);  gas = random.randint(100, 200)
-                        elif DEMO_OVERRIDE == 'a':
-                            temp = round(37.6 + random.uniform(-0.05, 0.05), 2); bpm = random.randint(108, 112); gas = random.randint(100, 200)
-                        elif DEMO_OVERRIDE == 'd':
-                            temp = round(36.2 + random.uniform(-0.05, 0.05), 2); bpm = random.randint(57, 59);  gas = random.randint(100, 200)
-                        elif DEMO_OVERRIDE == 'x':
-                            temp = round(36.9 + random.uniform(-0.05, 0.05), 2); bpm = random.randint(91, 93);  gas = random.randint(100, 200)
-                        elif DEMO_OVERRIDE == 'l':
-                            temp = round(37.0 + random.uniform(-0.05, 0.05), 2); bpm = random.randint(97, 99);  gas = random.randint(450, 950)
-                        blink_count = read_serial.demo_blink_val
+            now    = datetime.now().strftime("%H:%M:%S")
+            now_ts = time.time()
 
-                    with lock:
-                        now_ts           = time.time()
-                        completed_blinks = blink_count
+            # Replace sensor values with demo presets if flag is set
+            if DEMO_OVERRIDE:
+                temp, bpm, gas = _demo_sensors(DEMO_OVERRIDE)
+                blink_count    = blink_tracker.get(now_ts)
 
-                        data_store["timestamps"].append(now)
-                        data_store["temp"].append(temp)
-                        data_store["heartrate"].append(bpm)
-                        data_store["mq"].append(gas)
-                        data_store["blink"].append(blink)
-                        data_store["blink_count"].append(completed_blinks)
+            with lock:
+                _store_sample(now, temp, bpm, gas, blink, blink_count,
+                              DEMO_OVERRIDE, DEMO_MAP, now_ts)
 
-                        if DEMO_OVERRIDE:
-                            if DEMO_OVERRIDE != 'l' and random.random() < 0.10:
-                                other_keys = [k for k in DEMO_MAP if k != DEMO_OVERRIDE and k != 'l']
-                                emotion_data.update(DEMO_MAP[random.choice(other_keys)])
-                            else:
-                                emotion_data.update(DEMO_MAP[DEMO_OVERRIDE])
-                            _cfg.emotion_last_updated = now_ts
-                        else:
-                            result = derive_emotion(temp, bpm, gas, completed_blinks)
-                            if result:
-                                emotion_data.update(result)
-                                _cfg.emotion_last_updated = now_ts
-
-                        if session["active"]:
-                            data_store["emotion_log"].append({
-                                "time": now,
-                                "mode": emotion_data["mode"],
-                                "risk_level": emotion_data["risk_level"],
-                            })
-                except ValueError:
-                    pass
     except serial.SerialException as e:
         print(f"[Serial] Error: {e} — switching to demo mode")
+        if DEMO_OVERRIDE:
+            with lock:
+                emotion_data.update(DEMO_MAP[DEMO_OVERRIDE])
+                _cfg.emotion_last_updated = time.time()
         demo_mode()
 
 
+# ─────────────────────────────────────────────────────────────────────────────
 def demo_mode():
+    """
+    Software-only demo — no Arduino needed.
+    Generates realistic sensor data at 1 Hz.
+    If DEMO_OVERRIDE is set, uses preset sensor values and emotion.
+    If not, generates sinusoidal BPM and random values for a neutral demo.
+    """
     print("[Demo] Demo mode thread started.")
-    import config as _cfg
-    _blink_ranges = {'c': (15, 20), 'a': (10, 16), 'd': (2, 7), 'x': (18, 24), 'l': (10, 18)}
-    lo, hi = _blink_ranges.get(DEMO_OVERRIDE, (10, 20)) if DEMO_OVERRIDE else (10, 20)
-    blink_val    = random.randint(lo, hi)
-    blink_window = time.time()
+    DEMO_OVERRIDE = _cfg.DEMO_OVERRIDE
+    DEMO_MAP      = _cfg.DEMO_MAP
+
+    # Apply emotion preset immediately so dashboard shows correct state from second 1
+    if DEMO_OVERRIDE:
+        with lock:
+            emotion_data.update(DEMO_MAP[DEMO_OVERRIDE])
+            _cfg.emotion_last_updated = time.time()
+        print(f"[Demo] Preset: {DEMO_MAP[DEMO_OVERRIDE]['mode']}")
+
+    blink_tracker = _BlinkTracker(DEMO_OVERRIDE) if DEMO_OVERRIDE else None
     i = 0
 
     while True:
@@ -110,66 +178,19 @@ def demo_mode():
         now_ts = time.time()
 
         if DEMO_OVERRIDE:
-            if now_ts - blink_window >= 60:
-                lo, hi = _blink_ranges.get(DEMO_OVERRIDE, (10, 20))
-                blink_val = random.randint(lo, hi); blink_window = now_ts
-            if blink_val == 0:
-                lo, hi = _blink_ranges.get(DEMO_OVERRIDE, (10, 20))
-                blink_val = random.randint(lo, hi)
-            if DEMO_OVERRIDE == 'c':
-                temp = round(36.6 + random.uniform(-0.05, 0.05), 2); bpm = random.randint(74, 76);  gas = random.randint(100, 200)
-            elif DEMO_OVERRIDE == 'a':
-                temp = round(37.6 + random.uniform(-0.05, 0.05), 2); bpm = random.randint(108, 112); gas = random.randint(100, 200)
-            elif DEMO_OVERRIDE == 'd':
-                temp = round(36.2 + random.uniform(-0.05, 0.05), 2); bpm = random.randint(57, 59);  gas = random.randint(100, 200)
-            elif DEMO_OVERRIDE == 'x':
-                temp = round(36.9 + random.uniform(-0.05, 0.05), 2); bpm = random.randint(91, 93);  gas = random.randint(100, 200)
-            elif DEMO_OVERRIDE == 'l':
-                temp = round(37.0 + random.uniform(-0.05, 0.05), 2); bpm = random.randint(97, 99);  gas = random.randint(450, 950)
-            completed_blinks = min(blink_val, round(blink_val * min((now_ts - blink_window) / 60.0, 1.0)))
-            blink = 0
-            with lock:
-                data_store["timestamps"].append(now)
-                data_store["temp"].append(temp)
-                data_store["heartrate"].append(bpm)
-                data_store["mq"].append(gas)
-                data_store["blink"].append(blink)
-                data_store["blink_count"].append(completed_blinks)
-                if DEMO_OVERRIDE != 'l' and random.random() < 0.10:
-                    other_keys = [k for k in DEMO_MAP if k != DEMO_OVERRIDE and k != 'l']
-                    emotion_data.update(DEMO_MAP[random.choice(other_keys)])
-                else:
-                    emotion_data.update(DEMO_MAP[DEMO_OVERRIDE])
-                _cfg.emotion_last_updated = now_ts
-                if session["active"]:
-                    data_store["emotion_log"].append({
-                        "time": now,
-                        "mode": emotion_data["mode"],
-                        "risk_level": emotion_data["risk_level"],
-                    })
+            temp, bpm, gas  = _demo_sensors(DEMO_OVERRIDE)
+            blink_count     = blink_tracker.get(now_ts)
+            blink           = 0
         else:
-            temp  = round(36.5 + random.uniform(-0.5, 1.2), 2)
-            bpm   = round(72 + 10 * math.sin(i * 0.3) + random.uniform(-4, 4))
-            gas   = round(220 + random.uniform(-30, 180))
-            blink = random.choices([0, 1], weights=[85, 15])[0]
-            now_ts2 = time.time()
-            with lock:
-                data_store["timestamps"].append(now)
-                data_store["temp"].append(temp)
-                data_store["heartrate"].append(bpm)
-                data_store["mq"].append(gas)
-                data_store["blink"].append(blink)
-                data_store["blink_count"].append(0)
-                if now_ts2 - _cfg.emotion_last_updated >= 30:
-                    result = derive_emotion(temp, bpm, gas, 0)
-                    if result:
-                        emotion_data.update(result)
-                        _cfg.emotion_last_updated = now_ts2
-                if session["active"]:
-                    data_store["emotion_log"].append({
-                        "time": now,
-                        "mode": emotion_data["mode"],
-                        "risk_level": emotion_data["risk_level"],
-                    })
+            temp        = round(36.5 + random.uniform(-0.5, 1.2), 2)
+            bpm         = round(72 + 10 * math.sin(i * 0.3) + random.uniform(-4, 4))
+            gas         = round(220 + random.uniform(-30, 180))
+            blink       = random.choices([0, 1], weights=[85, 15])[0]
+            blink_count = 0
+
+        with lock:
+            _store_sample(now, temp, bpm, gas, blink, blink_count,
+                          DEMO_OVERRIDE, DEMO_MAP, now_ts)
+
         i += 1
         time.sleep(1)

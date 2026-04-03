@@ -21,12 +21,26 @@ def build_report():
         aqi        = dict(aqi_data)
         road       = dict(road_data)
 
-    avg_bpm   = round(sum(bpms)   / len(bpms),   1) if bpms   else 0
-    avg_temp  = round(sum(temps)  / len(temps),   2) if temps  else 0
-    avg_blink = round(sum(blinks) / len(blinks),  1) if blinks else 0
-    avg_gas   = round(sum(gases)  / len(gases),   1) if gases  else 0
-    peak_bpm  = max(bpms)  if bpms  else 0
-    peak_gas  = max(gases) if gases else 0
+    avg_bpm  = round(sum(bpms)  / len(bpms),  1) if bpms  else 0
+    avg_temp = round(sum(temps) / len(temps),  2) if temps else 0
+    avg_gas  = round(sum(gases) / len(gases),  1) if gases else 0
+    peak_bpm = max(bpms)  if bpms  else 0
+    peak_gas = max(gases) if gases else 0
+
+    # blink_count is a rolling per-minute counter that climbs then resets each minute.
+    # to get avg blinks/min, take the peak of each 60-sample window (1 sample/sec),
+    # then average those peaks across all completed windows.
+    if blinks:
+        window_size = 60
+        windows = [blinks[i:i + window_size] for i in range(0, len(blinks), window_size)]
+        # only include windows with at least half the samples (handles short sessions / last partial window)
+        completed = [w for w in windows if len(w) >= window_size // 2]
+        if completed:
+            avg_blink = round(sum(max(w) for w in completed) / len(completed), 1)
+        else:
+            avg_blink = round(max(blinks), 1)
+    else:
+        avg_blink = 0
 
     circadian    = get_circadian_risk()
     emotion_bd   = build_emotion_breakdown(emo_log)

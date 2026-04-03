@@ -64,51 +64,57 @@ body {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 
-/* ── Name Modal ── */
-.modal-overlay {
-  display: none; position: fixed; inset: 0;
-  background: rgba(0,0,0,0.7); z-index: 1000;
-  align-items: center; justify-content: center;
-  backdrop-filter: blur(4px);
+/* ── Fail-Safe Overlay ── */
+#failsafe-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #0d0f14;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px;
 }
-.modal-overlay.active { display: flex; }
-.modal-box {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 12px; padding: 40px 36px; width: 420px;
-  max-width: 90vw;
-}
-.modal-title {
-  font-family: 'Bebas Neue'; font-size: 1.6rem;
-  letter-spacing: 3px; color: var(--text); margin-bottom: 8px;
-}
-.modal-sub { font-size: 0.8rem; color: var(--muted); margin-bottom: 28px; }
-.modal-input {
-  width: 100%; background: var(--surface); border: 1px solid var(--border);
-  border-radius: 6px; padding: 12px 16px;
-  font-family: 'DM Sans'; font-size: 0.95rem; color: var(--text);
-  outline: none; margin-bottom: 20px;
-  transition: border-color 0.2s;
-}
-.modal-input:focus { border-color: var(--accent); }
-.modal-btn {
-  width: 100%; background: var(--accent); color: white;
-  border: none; border-radius: 6px; padding: 14px;
-  font-family: 'Bebas Neue'; font-size: 1.1rem; letter-spacing: 3px;
-  cursor: pointer; transition: opacity 0.2s;
-}
-.modal-btn:hover { opacity: 0.88; }
+#failsafe-overlay.active { display: flex; }
 
-/* ── PDF Button ── */
-.btn-pdf {
-  display: inline-flex; align-items: center; gap: 8px;
-  background: var(--surface); color: var(--text);
-  border: 1px solid var(--border); border-radius: 6px;
-  padding: 8px 18px; font-family: 'Bebas Neue';
-  font-size: 0.9rem; letter-spacing: 2px;
-  cursor: pointer; transition: border-color 0.2s, color 0.2s;
-  text-decoration: none;
+.failsafe-icon {
+  font-size: 4rem;
+  margin-bottom: 28px;
+  animation: failsafe-pulse 1.2s ease-in-out infinite;
 }
-.btn-pdf:hover { border-color: var(--accent); color: var(--accent); }
+@keyframes failsafe-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.92); }
+}
+.failsafe-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  letter-spacing: 4px;
+  color: #e8445a;
+  margin-bottom: 16px;
+  line-height: 1;
+}
+.failsafe-sub {
+  font-size: 1rem;
+  color: #5a6380;
+  max-width: 420px;
+  line-height: 1.7;
+  margin-bottom: 40px;
+}
+.failsafe-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(232,68,90,0.1);
+  border: 1px solid rgba(232,68,90,0.3);
+  color: #e8445a;
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
 
 /* ── SCREENS ── */
 .screen { display: none; min-height: 100vh; }
@@ -819,9 +825,14 @@ body {
         <div class="kpi-val" id="kpi-mq">—</div>
         <div class="kpi-unit">RAW ADC</div>
       </div>
+      <div class="kpi-card c4">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><img id="ico-blink" style="width:20px;height:20px;object-fit:contain;opacity:0.7;"/><div class="label-sm">Eye Blink</div></div>
+        <div class="kpi-val" id="kpi-blink">—</div>
+        <div class="kpi-unit">IR STATE</div>
+      </div>
       <div class="kpi-card c5">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><img id="ico-blink2" style="width:20px;height:20px;object-fit:contain;opacity:0.7;"/><div class="label-sm">Blinks Last Minute</div></div>
-        <div class="kpi-val" id="kpi-blink-count">0</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><img id="ico-blink2" style="width:20px;height:20px;object-fit:contain;opacity:0.7;"/><div class="label-sm">Blinks/Min</div></div>
+        <div class="kpi-val" id="kpi-blink-count">—</div>
         <div class="kpi-unit">PER MINUTE</div>
       </div>
       <div class="env-card">
@@ -882,12 +893,9 @@ body {
       <button class="btn-back" onclick="showDashboard()">← Back to Dashboard</button>
       <div class="report-title-sm">Session Report</div>
     </div>
-    <div style="display:flex;gap:10px;align-items:center;">
-      <button class="btn-pdf" onclick="downloadPDF()" id="btn-pdf">⬇ Download PDF</button>
-      <button class="btn-back" onclick="newSession()" style="border-color:var(--accent);color:var(--accent);">
-        ▶ New Session
-      </button>
-    </div>
+    <button class="btn-back" onclick="newSession()" style="border-color:var(--accent);color:var(--accent);">
+      ▶ New Session
+    </button>
   </div>
 
   <div class="report-body" id="report-body">
@@ -926,7 +934,6 @@ let reportReady     = false;
 let pollInterval    = null;
 let reportPollInt   = null;
 let lastData        = null;
-let lastReport      = null;
 
 const EMOTION_COLORS = {
   'CALM':             '#30c97e',
@@ -1036,124 +1043,15 @@ function startSession() {
 function newSession() {
   reportReady = false;
   showScreen('landing');
-}
-
-// ── Driver name ──────────────────────────────────────────────────────────────
-let driverName = '';
-
-function confirmName() {
-  const input = document.getElementById('input-driver-name').value.trim();
-  driverName = input || 'Driver';
-  document.getElementById('modal-name').classList.remove('active');
-}
-
-// Enter key listener added after DOM is ready
-window.addEventListener('DOMContentLoaded', function() {
-  const inp = document.getElementById('input-driver-name');
-  if (inp) inp.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') confirmName();
-  });
-});
-
-// ── PDF Download ──────────────────────────────────────────────────────────────
-function downloadPDF() {
-  if (!lastReport) {
-    alert('Report not ready yet.');
-    return;
-  }
-  const r = lastReport;
-  const ai = r.ai || {};
-
-  const breakdown = (r.emotion_breakdown || [])
-    .map(e => `  • ${e.mode}: ${e.label}`).join('\n');
-
-  const whyPoints = (ai.why_it_happened || [])
-    .map((p,i) => `  ${i+1}. ${p}`).join('\n');
-
-  const recPoints = (ai.recommendations || [])
-    .map((p,i) => `  ${i+1}. ${p}`).join('\n');
-
-  const checkPoints = (ai.pre_drive_checklist || [])
-    .map((p,i) => `  ${i+1}. ${p}`).join('\n');
-
-  const text = `EMO DRIVE — DRIVER SAFETY REPORT
-${'─'.repeat(48)}
-Driver      : ${driverName}
-Date & Time : ${r.session_time || '--'}
-Location    : ${r.location || '--'}
-
-SAFETY SCORE
-${'─'.repeat(48)}
-Score       : ${r.safety_score}/100
-Badge       : ${(r.badge && r.badge.label) || '--'}
-Fitness     : ${ai.fitness_to_drive || '--'}
-
-SESSION AVERAGES
-${'─'.repeat(48)}
-Avg BPM          : ${r.avg_bpm}
-Avg Temp         : ${r.avg_temp}°C
-Avg Blinks/Min   : ${r.avg_blink}
-Peak BPM         : ${r.peak_bpm}
-
-EMOTION TIMELINE
-${'─'.repeat(48)}
-${breakdown}
-
-ENVIRONMENT
-${'─'.repeat(48)}
-Weather     : ${(r.weather && r.weather.description) || '--'}, ${(r.weather && r.weather.temp_c) || '--'}°C
-AQI         : ${(r.aqi && r.aqi.aqi_label) || '--'} (AQI ${(r.aqi && r.aqi.aqi) || '--'})
-Road        : ${(r.road && r.road.road_type) || '--'} — ${(r.road && r.road.road_name) || '--'}
-
-SESSION SUMMARY
-${'─'.repeat(48)}
-${ai.session_summary || 'N/A'}
-
-WHY IT HAPPENED
-${'─'.repeat(48)}
-${whyPoints || 'N/A'}
-
-RECOMMENDATIONS
-${'─'.repeat(48)}
-${recPoints || 'N/A'}
-
-PRE-DRIVE CHECKLIST
-${'─'.repeat(48)}
-${checkPoints || 'N/A'}
-
-TRAFFIC LAW NOTE
-${'─'.repeat(48)}
-${ai.law_note || 'N/A'}
-
-${'─'.repeat(48)}
-Generated by EMO Drive IoT Safety System
-`;
-
-  const printWindow = window.open('', '_blank');
-  printWindow.document.write(`<!DOCTYPE html>
-<html>
-<head>
-  <title>EMO Drive Report — ${driverName}</title>
-  <style>
-    body {
-      font-family: 'Courier New', monospace;
-      background: white;
-      color: #111;
-      padding: 48px;
-      font-size: 13px;
-      line-height: 1.7;
-      white-space: pre-wrap;
-      max-width: 800px;
-      margin: 0 auto;
-    }
-    @media print {
-      body { padding: 24px; font-size: 12px; }
-    }
-  </style>
-</head>
-<body>${text}<script>window.onload=function(){window.print();}<\/script></body>
-</html>`);
-  printWindow.document.close();
+  loadPreviousSessions();
+  // Reset checks
+  Object.keys(checksReady).forEach(k => checksReady[k] = false);
+  document.getElementById('btn-start').disabled = true;
+  document.getElementById('btn-view-report').classList.remove('visible');
+  document.getElementById('timer-countdown').textContent = '10:00';
+  document.getElementById('timer-progress').style.width = '0%';
+  // Re-poll landing
+  startLandingPoll();
 }
 
 // ── Polling ───────────────────────────────────────────────────────────────────
@@ -1206,7 +1104,11 @@ function updateDashboard(d) {
   document.getElementById('kpi-temp').textContent        = parseFloat(d.temp[last]).toFixed(1);
   document.getElementById('kpi-hr').textContent          = d.heartrate[last];
   document.getElementById('kpi-mq').textContent          = d.mq[last];
-  document.getElementById('kpi-blink-count').textContent = d.blink_count[last] ?? 0;
+  document.getElementById('kpi-blink-count').textContent = d.blink_count[last];
+  const blinkNow = d.blink[last];
+  const blinkEl  = document.getElementById('kpi-blink');
+  blinkEl.textContent = blinkNow === 1 ? 'BLINK' : 'OPEN';
+  blinkEl.style.color = blinkNow === 1 ? 'var(--danger)' : 'var(--safe)';
 
   // Charts
   setChart(charts.temp,  ts, d.temp);
@@ -1216,6 +1118,15 @@ function updateDashboard(d) {
 
   // Emotion banner
   const em = d.emotion;
+
+  // Fail-safe mode — show fullscreen alert, hide everything else
+  if (em.mode === 'FAIL SAFE') {
+    document.getElementById('failsafe-overlay').classList.add('active');
+    return;
+  } else {
+    document.getElementById('failsafe-overlay').classList.remove('active');
+  }
+
   const rl = (em.risk_level || 'unknown').toLowerCase();
   const banner = document.getElementById('emotion-banner');
   banner.className = 'emotion-banner ' + rl;
@@ -1299,7 +1210,6 @@ function renderReport(report) {
     fetch('/report').then(r=>r.json()).then(d => { if(d.ready) renderReport(d.report); });
     return;
   }
-  lastReport = report;
   document.getElementById('report-loading').classList.remove('visible');
   const body = document.getElementById('report-body');
   const ai   = report.ai || {};
@@ -1316,11 +1226,11 @@ function renderReport(report) {
         </div>
         <div class="report-score-big display" style="color:${scoreColor};">${report.safety_score}</div>
         <div class="report-score-label">Safety Score / 100</div>
-        <div class="report-meta">${driverName} &nbsp;·&nbsp; ${report.session_time || ''} &nbsp;·&nbsp; ${report.location || ''}</div>
+        <div class="report-meta">${report.session_time || ''} &nbsp;·&nbsp; ${report.location || ''}</div>
       </div>
       <div style="text-align:right;">
         <div class="fitness-card ${fitnessRisk}" style="flex-direction:column;align-items:flex-start;gap:8px;">
-          <div class="fitness-icon">${fitnessRisk === "safe" ? '<img src="'+IMG["shield"]+'" style="width:32px;height:32px;object-fit:contain;"/>' : '<img src="'+IMG["diamond"]+'" style="width:32px;height:32px;object-fit:contain;"/>'}</div>
+          <div class="fitness-icon">" + (fitnessRisk==="safe" ? '<img src="'+IMG["shield"]+'" style="width:32px;height:32px;object-fit:contain;"/>' : fitnessRisk==="danger" ? '<img src="'+IMG["diamond"]+'" style="width:32px;height:32px;object-fit:contain;"/>' : '<img src="'+IMG["diamond"]+'" style="width:32px;height:32px;object-fit:contain;"/>') + "</div>
           <div class="fitness-verdict">${ai.fitness_to_drive || 'DRIVE WITH CAUTION'}</div>
         </div>
       </div>
@@ -1580,8 +1490,7 @@ function saveSession(report) {
   });
   if (sessions.length > 10) sessions.pop();
   localStorage.setItem('emodrive_sessions', JSON.stringify(sessions));
-  
-loadPreviousSessions();
+  loadPreviousSessions();
 }
 
 function loadPreviousSessions() {
@@ -1616,38 +1525,25 @@ function viewOldSession(i) {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-
 loadPreviousSessions();
 startLandingPoll();
 document.getElementById('hero-img').src = IMG['hero'];
 document.getElementById('ico-temp').src   = IMG['thermometer'];
 document.getElementById('ico-hr').src     = IMG['heartrate'];
 document.getElementById('ico-gas').src    = IMG['sensor'];
+document.getElementById('ico-blink').src  = IMG['eye'];
 document.getElementById('ico-blink2').src = IMG['eye'];
-
-// ── GPS Location ──────────────────────────────────────────────────────────────
-if (navigator.geolocation) {
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      fetch('/set_location', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ lat: pos.coords.latitude, lon: pos.coords.longitude })
-      });
-    },
-    err => console.warn('[GPS] Permission denied or unavailable, using IP location.')
-  );
-}
 </script>
 
-<!-- ── Name Modal ── -->
-<div id="modal-name" class="modal-overlay active">
-  <div class="modal-box">
-    <div class="modal-title">Welcome to EMO Drive</div>
-    <div class="modal-sub">Enter your name to personalise your session report.</div>
-    <input type="text" id="input-driver-name" class="modal-input" placeholder="Your name" maxlength="40" />
-    <button class="modal-btn" onclick="confirmName()">CONTINUE</button>
+<!-- ── Fail-Safe Overlay ── -->
+<div id="failsafe-overlay">
+  <div class="failsafe-icon">⚠️</div>
+  <div class="failsafe-title">Sensor Failure Detected</div>
+  <div class="failsafe-sub">
+    One or more sensors have stopped responding.<br>
+    Please pull over safely and check your hardware before continuing.
   </div>
+  <div class="failsafe-badge">🔴 &nbsp; EMO Drive — Stay Safe</div>
 </div>
 
 </body>

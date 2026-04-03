@@ -9,12 +9,12 @@ parser.add_argument('--demo', type=str, default=None,
     help='Override sensors with fake data for a specific emotion')
 args, _ = parser.parse_known_args()
 DEMO_OVERRIDE = args.demo
-
+print(f"[Config] DEMO_OVERRIDE = {repr(DEMO_OVERRIDE)}")
 # ── Hardware / API config ─────────────────────────────────────────────────────
 SERIAL_PORT      = "COM3"
 BAUD_RATE        = 9600
 MAX_POINTS       = 700
-SESSION_DURATION = 60
+SESSION_DURATION = 600
 
 OPENWEATHER_KEY  = "5961f3b74746d180f3ea6bb759c17e77"
 NIM_API_KEY      = "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"
